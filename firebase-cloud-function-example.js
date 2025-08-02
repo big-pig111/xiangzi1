@@ -8,6 +8,128 @@ const admin = require('firebase-admin');
 // Initialize Firebase Admin SDK
 admin.initializeApp();
 
+// Cloud Function: getPointsBalance
+// Gets the current points balance for a user
+exports.getPointsBalance = functions.https.onCall(async (data, context) => {
+    try {
+        // Validate input data
+        const { walletAddress } = data;
+        
+        if (!walletAddress) {
+            throw new Error('Missing required parameter: walletAddress');
+        }
+        
+        // Get Firestore database reference
+        const db = admin.firestore();
+        
+        // Get user document
+        const userRef = db.collection('users').doc(walletAddress);
+        const userDoc = await userRef.get();
+        
+        if (!userDoc.exists) {
+            // Return 0 points for new users
+            return {
+                success: true,
+                walletAddress: walletAddress,
+                points: 0,
+                memeTokens: 0
+            };
+        }
+        
+        const userData = userDoc.data();
+        
+        return {
+            success: true,
+            walletAddress: walletAddress,
+            points: userData.points || 0,
+            memeTokens: userData.memeTokens || 0,
+            lastUpdated: userData.lastUpdated
+        };
+        
+    } catch (error) {
+        console.error('Error getting points balance:', error);
+        throw new Error(`Failed to get points balance: ${error.message}`);
+    }
+});
+
+// Cloud Function: syncClaimedPoints
+// Syncs claimed points to user's account in Firestore
+exports.syncClaimedPoints = functions.https.onCall(async (data, context) => {
+    try {
+        // Validate input data
+        const { walletAddress, pointsAmount, rewardType, timestamp } = data;
+        
+        if (!walletAddress || !pointsAmount || !rewardType) {
+            throw new Error('Missing required parameters: walletAddress, pointsAmount, rewardType');
+        }
+        
+        if (pointsAmount <= 0) {
+            throw new Error('Invalid points amount: must be positive');
+        }
+        
+        // Get Firestore database reference
+        const db = admin.firestore();
+        
+        // Get or create user document
+        const userRef = db.collection('users').doc(walletAddress);
+        const userDoc = await userRef.get();
+        
+        let userData = {};
+        if (userDoc.exists) {
+            userData = userDoc.data();
+        }
+        
+        // Update user's points
+        const currentPoints = userData.points || 0;
+        const newPoints = currentPoints + pointsAmount;
+        
+        // Create transaction to ensure data consistency
+        const result = await db.runTransaction(async (transaction) => {
+            // Re-read user data in transaction
+            const userDoc = await transaction.get(userRef);
+            const userData = userDoc.data() || {};
+            const currentPoints = userData.points || 0;
+            const newPoints = currentPoints + pointsAmount;
+            
+            // Update user points
+            transaction.set(userRef, {
+                walletAddress: walletAddress,
+                points: newPoints,
+                lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+                ...userData // Preserve other user data
+            }, { merge: true });
+            
+            // Record the points claim
+            const claimRef = db.collection('pointClaims').doc();
+            transaction.set(claimRef, {
+                walletAddress: walletAddress,
+                pointsAmount: pointsAmount,
+                rewardType: rewardType,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                status: 'claimed',
+                claimId: claimRef.id
+            });
+            
+            return {
+                success: true,
+                claimId: claimRef.id,
+                oldPoints: currentPoints,
+                newPoints: newPoints,
+                addedPoints: pointsAmount
+            };
+        });
+        
+        // Log the successful sync
+        console.log(`Points synced for ${walletAddress}: +${pointsAmount} points (${rewardType})`);
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Error syncing claimed points:', error);
+        throw new Error(`Failed to sync points: ${error.message}`);
+    }
+});
+
 // Cloud Function: claimToken
 // Handles the exchange of points for MEME tokens at 1:10 ratio
 exports.claimToken = functions.https.onCall(async (data, context) => {
@@ -94,32 +216,13 @@ exports.claimToken = functions.https.onCall(async (data, context) => {
         });
         
         // Log the successful exchange
-        console.log(`Exchange completed: ${walletAddress} exchanged ${pointsAmount} points for ${tokenAmount} tokens`);
+        console.log(`Token exchange completed for ${walletAddress}: ${pointsAmount} points -> ${tokenAmount} tokens`);
         
-        // Return success response
-        return {
-            success: true,
-            message: 'Exchange completed successfully',
-            data: {
-                walletAddress: walletAddress,
-                pointsExchanged: pointsAmount,
-                tokensReceived: tokenAmount,
-                newPointsBalance: result.newPoints,
-                newTokenBalance: result.newTokens,
-                transactionId: result.transactionId,
-                timestamp: timestamp
-            }
-        };
+        return result;
         
     } catch (error) {
-        console.error('Exchange error:', error);
-        
-        // Return error response
-        return {
-            success: false,
-            error: error.message,
-            code: error.code || 'UNKNOWN_ERROR'
-        };
+        console.error('Error in claimToken:', error);
+        throw new Error(`Exchange failed: ${error.message}`);
     }
 });
 
