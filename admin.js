@@ -55,10 +55,18 @@ function bindEventListenersWithRetry() {
             element.removeEventListener(event, window.adminApp?.configManager?.[handler]);
             
             // 添加新的事件监听器
-            element.addEventListener(event, () => {
+            element.addEventListener(event, async () => {
                 console.log(`Button ${id} clicked, calling ${handler}`);
                 if (window.adminApp?.configManager?.[handler]) {
-                    window.adminApp.configManager[handler]();
+                    try {
+                        const result = window.adminApp.configManager[handler]();
+                        // 如果是异步函数，等待它完成
+                        if (result && typeof result.then === 'function') {
+                            await result;
+                        }
+                    } catch (error) {
+                        console.error(`Error in handler ${handler}:`, error);
+                    }
                 } else {
                     console.error(`Handler ${handler} not found in configManager`);
                 }
@@ -610,7 +618,11 @@ class ConfigManager {
                     } else {
                         // 回退到本地存储
                         this.log('Firebase不可用，使用本地存储', 'info');
-                        this.resetCountdownLocal(minutes);
+                        this.resetCountdownLocal(minutes).then(() => {
+                            this.log('本地重置完成', 'success');
+                        }).catch((error) => {
+                            this.log('本地重置失败: ' + error.message, 'error');
+                        });
                     }
                     
                 } catch (error) {
@@ -625,7 +637,7 @@ class ConfigManager {
     }
 
     // 本地存储重置倒计时（回退方案）
-    resetCountdownLocal(minutes) {
+    async resetCountdownLocal(minutes) {
         try {
             const now = new Date();
             const newTargetDate = new Date(now.getTime() + minutes * 60 * 1000);
@@ -641,15 +653,38 @@ class ConfigManager {
                 targetDate: newTargetDate.toISOString(),
                 lastUpdate: new Date().toISOString(),
                 resetBy: 'admin-panel-local',
-                version: '1.0'
+                version: '2.0'
             };
             
-            try {
-                localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
-                console.log('Countdown data saved to localStorage');
-            } catch (storageError) {
-                console.error('Failed to save to localStorage:', storageError);
-                this.log('警告：无法保存到本地存储，但倒计时仍会重置', 'warning');
+            // 优先使用Firebase，回退到localStorage
+            if (typeof firebase !== 'undefined' && firebase.database) {
+                try {
+                    const countdownRef = firebase.database().ref('countdown');
+                    await countdownRef.set(countdownData);
+                    console.log('Countdown data saved to Firebase');
+                    this.log(`倒计时已重置为${minutes}分钟（Firebase同步）`, 'success');
+                } catch (firebaseError) {
+                    console.error('Failed to save to Firebase:', firebaseError);
+                    this.log('Firebase保存失败，使用本地存储', 'warning');
+                    
+                    // 回退到localStorage
+                    try {
+                        localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+                        console.log('Countdown data saved to localStorage');
+                    } catch (storageError) {
+                        console.error('Failed to save to localStorage:', storageError);
+                        this.log('警告：无法保存到本地存储，但倒计时仍会重置', 'warning');
+                    }
+                }
+            } else {
+                // 直接使用localStorage
+                try {
+                    localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+                    console.log('Countdown data saved to localStorage');
+                } catch (storageError) {
+                    console.error('Failed to save to localStorage:', storageError);
+                    this.log('警告：无法保存到本地存储，但倒计时仍会重置', 'warning');
+                }
             }
             
             // 更新后台配置
@@ -664,8 +699,6 @@ class ConfigManager {
                 console.log('Verified saved data:', parsed);
             }
             
-            this.log(`倒计时已重置为${minutes}分钟（本地模式）`, 'success');
-            
             // 触发自定义事件，通知前台页面
             window.dispatchEvent(new CustomEvent('countdownReset', {
                 detail: countdownData
@@ -678,7 +711,7 @@ class ConfigManager {
     }
 
     // 保存倒计时配置
-    saveCountdownConfig() {
+    async saveCountdownConfig() {
         const minutes = parseInt(document.getElementById('countdownMinutes').value);
         const message = document.getElementById('countdownMessage').value.trim();
         
@@ -707,9 +740,24 @@ class ConfigManager {
                     
                     const countdownData = {
                         targetDate: newTargetDate.toISOString(),
-                        lastUpdate: new Date().toISOString()
+                        lastUpdate: new Date().toISOString(),
+                        message: message,
+                        version: '2.0'
                     };
-                    localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+                    
+                    // 优先使用Firebase，回退到localStorage
+                    if (typeof firebase !== 'undefined' && firebase.database) {
+                        try {
+                            const countdownRef = firebase.database().ref('countdown');
+                            await countdownRef.set(countdownData);
+                            console.log('Countdown config updated via Firebase');
+                        } catch (firebaseError) {
+                            console.error('Failed to update via Firebase:', firebaseError);
+                            localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+                        }
+                    } else {
+                        localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+                    }
                 }
             } catch (error) {
                 console.error('更新倒计时失败:', error);
@@ -785,12 +833,18 @@ class ConfigManager {
     }
 
     // 保存所有配置
-    saveAllConfig() {
-        this.saveRpcConfig();
-        this.saveTokenConfig();
-        this.saveCountdownConfig();
-        this.saveRewardCountdownConfig();
-        this.showModal('成功', '所有配置已保存');
+    async saveAllConfig() {
+        try {
+            this.saveRpcConfig();
+            this.saveTokenConfig();
+            await this.saveCountdownConfig();
+            this.saveRewardCountdownConfig();
+            this.showModal('成功', '所有配置已保存');
+        } catch (error) {
+            console.error('保存配置时发生错误:', error);
+            this.log('保存配置时发生错误: ' + error.message, 'error');
+            this.showModal('错误', '保存配置时发生错误: ' + error.message);
+        }
     }
 
     // 刷新状态
