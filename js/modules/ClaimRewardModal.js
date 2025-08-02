@@ -54,11 +54,11 @@ class ClaimRewardModal {
         });
     }
 
-    // 显示领取奖励页面
+    // Show claim reward page
     show() {
         if (this.isOpen) return;
 
-        // 创建遮罩层
+        // Create overlay
         this.overlay = document.createElement('div');
         this.overlay.className = 'claim-reward-overlay';
         this.overlay.style.cssText = `
@@ -75,7 +75,7 @@ class ClaimRewardModal {
             backdrop-filter: blur(10px);
         `;
 
-        // 创建iframe容器
+        // Create iframe container
         const container = document.createElement('div');
         container.style.cssText = `
             width: 95%;
@@ -89,7 +89,7 @@ class ClaimRewardModal {
             border: 4px solid #000;
         `;
 
-        // 创建iframe容器（内部容器，用于处理overflow）
+        // Create iframe container (inner container for overflow handling)
         const iframeContainer = document.createElement('div');
         iframeContainer.style.cssText = `
             width: 100%;
@@ -98,7 +98,7 @@ class ClaimRewardModal {
             border-radius: 12px;
         `;
 
-        // 创建iframe
+        // Create iframe
         this.iframe = document.createElement('iframe');
         this.iframe.src = 'claim-reward.html';
         this.iframe.style.cssText = `
@@ -109,7 +109,7 @@ class ClaimRewardModal {
             background: white;
         `;
 
-        // 添加关闭按钮
+        // Add close button
         const closeBtn = document.createElement('button');
         closeBtn.innerHTML = '🎁';
         closeBtn.style.cssText = `
@@ -145,14 +145,14 @@ class ClaimRewardModal {
             this.close();
         });
 
-        // 组装DOM
+        // Assemble DOM
         iframeContainer.appendChild(this.iframe);
         container.appendChild(iframeContainer);
         container.appendChild(closeBtn);
         this.overlay.appendChild(container);
         document.body.appendChild(this.overlay);
 
-        // 添加动画效果
+        // Add animation effects
         this.overlay.style.opacity = '0';
         this.overlay.style.transform = 'scale(0.9)';
         
@@ -164,10 +164,10 @@ class ClaimRewardModal {
 
         this.isOpen = true;
 
-        // 阻止背景滚动
+        // Prevent background scrolling
         document.body.style.overflow = 'hidden';
 
-        // 点击遮罩层关闭
+        // Click overlay to close
         this.overlay.addEventListener('click', (event) => {
             if (event.target === this.overlay) {
                 this.close();
@@ -175,11 +175,11 @@ class ClaimRewardModal {
         });
     }
 
-    // 关闭领取奖励页面
+    // Close claim reward page
     close() {
         if (!this.isOpen) return;
 
-        // 添加关闭动画
+        // Add close animation
         this.overlay.style.transition = 'all 0.3s ease';
         this.overlay.style.opacity = '0';
         this.overlay.style.transform = 'scale(0.9)';
@@ -192,12 +192,12 @@ class ClaimRewardModal {
             this.iframe = null;
             this.isOpen = false;
 
-            // 恢复背景滚动
+            // Restore background scrolling
             document.body.style.overflow = '';
         }, 300);
     }
 
-    // 切换显示状态
+    // Toggle display state
     toggle() {
         if (this.isOpen) {
             this.close();
