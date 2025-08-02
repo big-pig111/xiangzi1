@@ -730,26 +730,26 @@
         let totalPoints = 0;
 
         // Initialize page
-        document.addEventListener('DOMContentLoaded', function() {
-            checkWalletConnection();
+        document.addEventListener('DOMContentLoaded', async function() {
+            await checkWalletConnection();
             loadRewardData();
             updateDisplay();
             
             // Sync points balance from backend when wallet is connected
             if (walletConnected && walletAddress) {
-                syncPointsFromBackend();
+                await syncPointsFromBackend();
             }
         });
 
         // Check wallet connection
-        function checkWalletConnection() {
+        async function checkWalletConnection() {
             // First check if there's a saved connection in this page
             const savedConnection = localStorage.getItem('walletConnection');
             if (savedConnection) {
                 const connection = JSON.parse(savedConnection);
                 walletConnected = true;
                 walletAddress = connection.address;
-                updateWalletDisplay();
+                await updateWalletDisplay();
                 return;
             }
 
@@ -758,30 +758,7 @@
             console.log('No wallet connection found, waiting for main page connection...');
         }
 
-        // Update wallet display
-        function updateWalletDisplay() {
-            const walletStatus = document.getElementById('walletStatus');
-            const walletAddressEl = document.getElementById('walletAddress');
-            const connectBtn = document.getElementById('connectWalletBtn');
 
-            if (walletConnected && walletAddress) {
-                walletStatus.textContent = 'Wallet Connected';
-                walletStatus.className = 'wallet-status connected';
-                walletAddressEl.textContent = `Address: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
-                connectBtn.textContent = '🔗 Wallet Connected';
-                connectBtn.style.background = 'linear-gradient(135deg, #4CAF50, #45a049)';
-                
-                // Reload reward data when wallet is connected
-                loadRewardData();
-                updateDisplay();
-            } else {
-                walletStatus.textContent = 'Wallet Not Connected';
-                walletStatus.className = 'wallet-status disconnected';
-                walletAddressEl.textContent = '';
-                connectBtn.textContent = '🔗 Connect Wallet';
-                connectBtn.style.background = 'linear-gradient(135deg, #FF2E63, #9D4EDD)';
-            }
-        }
 
         // Connect wallet
         function connectWallet() {
@@ -1083,15 +1060,15 @@
         }
 
         // Listen for wallet connection updates
-        window.addEventListener('message', (event) => {
+        window.addEventListener('message', async (event) => {
             if (event.data.type === 'walletConnected') {
                 walletConnected = true;
                 walletAddress = event.data.address;
-                updateWalletDisplay();
+                await updateWalletDisplay();
             } else if (event.data.type === 'walletDisconnected') {
                 walletConnected = false;
                 walletAddress = '';
-                updateWalletDisplay();
+                await updateWalletDisplay();
             }
         });
 
@@ -1232,19 +1209,21 @@
             }
         }
 
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5Z5ieEbAcfQX0kxGSn9ldGXhzvAwx_8M",
+            authDomain: "chat-294cc.firebaseapp.com",
+            databaseURL: "https://chat-294cc-default-rtdb.firebaseio.com",
+            projectId: "chat-294cc",
+            storageBucket: "chat-294cc.firebasestorage.app",
+            messagingSenderId: "913615304269",
+            appId: "1:913615304269:web:0274ffaccb8e6b678e4e04",
+            measurementId: "G-SJR9NDW86B"
+        };
+
         // Sync claimed points to backend
         async function syncClaimedPointsToBackend(walletAddress, pointsAmount, rewardType) {
             try {
-                // Firebase configuration - replace with your actual Firebase config
-                const firebaseConfig = {
-                    apiKey: "your-api-key",
-                    authDomain: "your-project.firebaseapp.com",
-                    projectId: "your-project-id",
-                    storageBucket: "your-project.appspot.com",
-                    messagingSenderId: "your-sender-id",
-                    appId: "your-app-id"
-                };
-
                 // Initialize Firebase if not already initialized
                 if (!window.firebase) {
                     // Load Firebase SDK
@@ -1273,16 +1252,6 @@
         // Get points balance from backend
         async function getBackendPointsBalance(walletAddress) {
             try {
-                // Firebase configuration - replace with your actual Firebase config
-                const firebaseConfig = {
-                    apiKey: "your-api-key",
-                    authDomain: "your-project.firebaseapp.com",
-                    projectId: "your-project-id",
-                    storageBucket: "your-project.appspot.com",
-                    messagingSenderId: "your-sender-id",
-                    appId: "your-app-id"
-                };
-
                 // Initialize Firebase if not already initialized
                 if (!window.firebase) {
                     // Load Firebase SDK
@@ -1323,16 +1292,6 @@
         }
 
         async function callFirebaseClaimToken(walletAddress, pointsAmount, tokenAmount) {
-            // Firebase configuration - replace with your actual Firebase config
-            const firebaseConfig = {
-                apiKey: "your-api-key",
-                authDomain: "your-project.firebaseapp.com",
-                projectId: "your-project-id",
-                storageBucket: "your-project.appspot.com",
-                messagingSenderId: "your-sender-id",
-                appId: "your-app-id"
-            };
-
             // Initialize Firebase if not already initialized
             if (!window.firebase) {
                 // Load Firebase SDK
@@ -1365,16 +1324,24 @@
 
         async function loadFirebaseSDK() {
             return new Promise((resolve, reject) => {
-                // Load Firebase App
+                // Check if Firebase is already loaded
+                if (window.firebase) {
+                    resolve();
+                    return;
+                }
+
+                // Load Firebase App (compat version for global firebase object)
                 const firebaseAppScript = document.createElement('script');
-                firebaseAppScript.src = 'https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js';
+                firebaseAppScript.src = 'https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js';
                 firebaseAppScript.onload = () => {
-                    // Load Firebase Functions
+                    // Load Firebase Functions (compat version for global firebase object)
                     const firebaseFunctionsScript = document.createElement('script');
-                    firebaseFunctionsScript.src = 'https://www.gstatic.com/firebasejs/9.0.0/firebase-functions.js';
+                    firebaseFunctionsScript.src = 'https://www.gstatic.com/firebasejs/9.0.0/firebase-functions-compat.js';
                     firebaseFunctionsScript.onload = () => {
-                        // Initialize Firebase
-                        firebase.initializeApp(firebaseConfig);
+                        // Initialize Firebase only if not already initialized
+                        if (!firebase.apps.length) {
+                            firebase.initializeApp(firebaseConfig);
+                        }
                         resolve();
                     };
                     firebaseFunctionsScript.onerror = reject;
@@ -1426,7 +1393,7 @@
         }
 
         // Update exchange button state when wallet connection changes
-        function updateWalletDisplay() {
+        async function updateWalletDisplay() {
             const walletStatus = document.getElementById('walletStatus');
             const walletAddressEl = document.getElementById('walletAddress');
             const connectBtn = document.getElementById('connectWalletBtn');
@@ -1442,6 +1409,13 @@
                 loadRewardData();
                 updateDisplay();
                 updateExchangeButton(); // Update exchange button state
+                
+                // Sync points from backend to ensure accurate balance
+                try {
+                    await syncPointsFromBackend();
+                } catch (error) {
+                    console.error('Failed to sync points from backend:', error);
+                }
             } else {
                 walletStatus.textContent = 'Wallet Not Connected';
                 walletStatus.className = 'wallet-status disconnected';
