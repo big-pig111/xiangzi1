@@ -87,7 +87,7 @@ class MainCountdown {
 
     loadFromBackend() {
         try {
-            // 优先从全局倒计时存储加载
+            // Prioritize loading from global countdown storage
             const globalCountdown = localStorage.getItem('memeCoinCountdown');
             if (globalCountdown) {
                 const data = JSON.parse(globalCountdown);
@@ -95,7 +95,7 @@ class MainCountdown {
                 const now = new Date();
                 
                 if (targetDate > now) {
-                    // 计算剩余时间
+                    // Calculate remaining time
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
@@ -108,7 +108,7 @@ class MainCountdown {
                 }
             }
             
-            // 回退到后台配置
+            // Fallback to backend configuration
             const adminConfig = localStorage.getItem('memeCoinAdminConfig');
             if (adminConfig) {
                 const config = JSON.parse(adminConfig);
@@ -125,7 +125,7 @@ class MainCountdown {
 
     saveToBackend() {
         try {
-            // 检查是否已经有全局倒计时，如果有则不覆盖
+            // Check if global countdown already exists, if so don't overwrite
             const existingGlobalCountdown = localStorage.getItem('memeCoinCountdown');
             if (existingGlobalCountdown) {
                 try {
@@ -133,7 +133,7 @@ class MainCountdown {
                     const targetDate = new Date(data.targetDate);
                     const now = new Date();
                     
-                    // 如果全局倒计时还没有过期，不覆盖它
+                    // If global countdown hasn't expired, don't overwrite it
                     if (targetDate > now) {
                         console.log('Global countdown exists and not expired, skipping save');
                         return;
@@ -143,7 +143,7 @@ class MainCountdown {
                 }
             }
             
-            // 保存到全局倒计时存储（主要存储）
+            // Save to global countdown storage (primary storage)
             const now = new Date();
             const targetDate = new Date(now.getTime() + (this.minutes * 60 + this.seconds) * 1000);
             
@@ -153,7 +153,7 @@ class MainCountdown {
             };
             localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
             
-            // 同时保存到后台配置（备份）
+            // Also save to backend configuration (backup)
             const adminConfig = localStorage.getItem('memeCoinAdminConfig');
             let config = adminConfig ? JSON.parse(adminConfig) : {};
             
@@ -189,7 +189,7 @@ class MainCountdown {
     }
 
     update() {
-        // 首先检查全局倒计时是否有更新
+        // First check if global countdown has updates
         const globalCountdown = localStorage.getItem('memeCoinCountdown');
         if (globalCountdown) {
             try {
@@ -198,18 +198,18 @@ class MainCountdown {
                 const now = new Date();
                 
                 if (targetDate > now) {
-                    // 计算剩余时间
+                    // Calculate remaining time
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
                     
-                    // 如果全局倒计时与当前显示不同，更新显示
+                    // If global countdown differs from current display, update display
                     if (remainingMinutes !== this.minutes || remainingSeconds !== this.seconds) {
                         this.minutes = remainingMinutes;
                         this.seconds = remainingSeconds;
                         this.updateDisplay();
                         console.log('Countdown updated from global storage:', this.minutes, this.seconds);
-                        return; // 不执行本地倒计时逻辑
+                        return; // Don't execute local countdown logic
                     }
                 }
             } catch (error) {
@@ -217,7 +217,7 @@ class MainCountdown {
             }
         }
         
-        // 本地倒计时逻辑
+        // Local countdown logic
         if (this.seconds === 0) {
             if (this.minutes === 0) {
                 this.showLaunchMessage();
@@ -234,7 +234,7 @@ class MainCountdown {
         }
 
         this.updateDisplay();
-        // 只有在没有全局倒计时更新时才保存到后端
+        // Only save to backend when there's no global countdown update
         if (!globalCountdown) {
             this.saveToBackend();
         }
@@ -265,7 +265,7 @@ class MainCountdown {
     }
 
     restart() {
-        // 从后台配置获取默认时间
+        // Get default time from backend configuration
         try {
             const adminConfig = localStorage.getItem('memeCoinAdminConfig');
             if (adminConfig) {
@@ -308,7 +308,7 @@ class MainCountdown {
     updateFromBackend(backendConfig) {
         console.log('MainCountdown updateFromBackend called with:', backendConfig);
         
-        // 优先从全局倒计时读取
+        // Prioritize reading from global countdown
         const globalCountdown = localStorage.getItem('memeCoinCountdown');
         if (globalCountdown) {
             try {
@@ -317,7 +317,7 @@ class MainCountdown {
                 const now = new Date();
                 
                 if (targetDate > now) {
-                    // 计算剩余时间
+                    // Calculate remaining time
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
@@ -335,14 +335,14 @@ class MainCountdown {
                         this.updateDisplay();
                         console.log('Main countdown updated from global countdown');
                     }
-                    return; // 不执行后端配置更新
+                    return; // Don't execute backend configuration update
                 }
             } catch (error) {
                 console.error('Failed to parse global countdown:', error);
             }
         }
         
-        // 只有在没有全局倒计时时才使用后端配置
+        // Only use backend configuration when there's no global countdown
         if (backendConfig && (backendConfig.minutes !== this.minutes || backendConfig.seconds !== this.seconds)) {
             this.minutes = backendConfig.minutes || 5;
             this.seconds = backendConfig.seconds || 0;
@@ -373,7 +373,7 @@ class RewardCountdown {
 
     loadFromBackend() {
         try {
-            // 优先从全局持仓倒计时存储加载
+            // Prioritize loading from global holding countdown storage
             const globalRewardCountdown = localStorage.getItem('memeCoinRewardCountdown');
             if (globalRewardCountdown) {
                 const data = JSON.parse(globalRewardCountdown);
@@ -381,7 +381,7 @@ class RewardCountdown {
                 const now = new Date();
                 
                 if (targetDate > now) {
-                    // 计算剩余时间
+                    // Calculate remaining time
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
@@ -394,7 +394,7 @@ class RewardCountdown {
                 }
             }
             
-            // 回退到后台配置
+            // Fallback to backend configuration
             const adminConfig = localStorage.getItem('memeCoinAdminConfig');
             if (adminConfig) {
                 const config = JSON.parse(adminConfig);
@@ -411,7 +411,7 @@ class RewardCountdown {
 
     saveToBackend() {
         try {
-            // 检查是否已经有全局持仓倒计时，如果有则不覆盖
+            // Check if global holding countdown already exists, if so don't overwrite
             const existingGlobalRewardCountdown = localStorage.getItem('memeCoinRewardCountdown');
             if (existingGlobalRewardCountdown) {
                 try {
@@ -419,7 +419,7 @@ class RewardCountdown {
                     const targetDate = new Date(data.targetDate);
                     const now = new Date();
                     
-                    // 如果全局持仓倒计时还没有过期，不覆盖它
+                    // If global holding countdown hasn't expired, don't overwrite it
                     if (targetDate > now) {
                         console.log('Global reward countdown exists and not expired, skipping save');
                         return;
@@ -429,7 +429,7 @@ class RewardCountdown {
                 }
             }
             
-            // 保存到全局持仓倒计时存储（主要存储）
+            // Save to global holding countdown storage (primary storage)
             const now = new Date();
             const targetDate = new Date(now.getTime() + (this.minutes * 60 + this.seconds) * 1000);
             
@@ -439,7 +439,7 @@ class RewardCountdown {
             };
             localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(countdownData));
             
-            // 同时保存到后台配置（备份）
+            // Also save to backend configuration (backup)
             const adminConfig = localStorage.getItem('memeCoinAdminConfig');
             let config = adminConfig ? JSON.parse(adminConfig) : {};
             
@@ -475,7 +475,7 @@ class RewardCountdown {
     }
 
     update() {
-        // 首先检查全局持仓倒计时是否有更新
+        // First check if global holding countdown has updates
         const globalRewardCountdown = localStorage.getItem('memeCoinRewardCountdown');
         if (globalRewardCountdown) {
             try {
@@ -484,18 +484,18 @@ class RewardCountdown {
                 const now = new Date();
                 
                 if (targetDate > now) {
-                    // 计算剩余时间
+                    // Calculate remaining time
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
                     
-                    // 如果全局持仓倒计时与当前显示不同，更新显示
+                    // If global holding countdown differs from current display, update display
                     if (remainingMinutes !== this.minutes || remainingSeconds !== this.seconds) {
                         this.minutes = remainingMinutes;
                         this.seconds = remainingSeconds;
                         this.updateDisplay();
                         console.log('Reward countdown updated from global storage:', this.minutes, this.seconds);
-                        return; // 不执行本地倒计时逻辑
+                        return; // Don't execute local countdown logic
                     }
                 }
             } catch (error) {
@@ -503,7 +503,7 @@ class RewardCountdown {
             }
         }
         
-        // 本地倒计时逻辑
+        // Local countdown logic
         if (this.seconds === 0) {
             if (this.minutes === 0) {
                 // Save holders snapshot when reward countdown ends
@@ -518,7 +518,7 @@ class RewardCountdown {
         }
 
         this.updateDisplay();
-        // 只有在没有全局持仓倒计时更新时才保存到后端
+        // Only save to backend when there's no global holding countdown update
         if (!globalRewardCountdown) {
             this.saveToBackend();
         }
@@ -552,7 +552,7 @@ class RewardCountdown {
         this.loadFromBackend();
         this.saveToBackend();
         
-        // 确保倒计时重新启动
+        // Ensure countdown restarts
         if (this.isRunning) {
             this.stop();
             this.start();
@@ -562,7 +562,7 @@ class RewardCountdown {
     updateFromBackend(backendConfig) {
         console.log('RewardCountdown updateFromBackend called with:', backendConfig);
         
-        // 优先从全局持仓倒计时读取
+        // Prioritize reading from global holding countdown
         const globalRewardCountdown = localStorage.getItem('memeCoinRewardCountdown');
         if (globalRewardCountdown) {
             try {
@@ -571,7 +571,7 @@ class RewardCountdown {
                 const now = new Date();
                 
                 if (targetDate > now) {
-                    // 计算剩余时间
+                    // Calculate remaining time
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
@@ -589,14 +589,14 @@ class RewardCountdown {
                         this.updateDisplay();
                         console.log('Reward countdown updated from global storage');
                     }
-                    return; // 不执行后端配置更新
+                    return; // Don't execute backend configuration update
                 }
             } catch (error) {
                 console.error('Failed to parse global reward countdown:', error);
             }
         }
         
-        // 只有在没有全局持仓倒计时时才使用后端配置
+        // Only use backend configuration when there's no global holding countdown
         if (backendConfig && (backendConfig.minutes !== this.minutes || backendConfig.seconds !== this.seconds)) {
             this.minutes = backendConfig.minutes || 20;
             this.seconds = backendConfig.seconds || 0;
