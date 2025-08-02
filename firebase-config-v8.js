@@ -1,4 +1,4 @@
-// Firebase 配置 - 实时数据同步 (v8版本)
+// Firebase Configuration - Real-time Data Synchronization (v8 version)
 const firebaseConfig = {
     apiKey: "AIzaSyA5Z5ieEbAcfQX0kxGSn9ldGXhzvAwx_8M",
     authDomain: "chat-294cc.firebaseapp.com",
@@ -10,18 +10,18 @@ const firebaseConfig = {
     measurementId: "G-SJR9NDW86B"
 };
 
-// 初始化 Firebase (v8版本)
+// Initialize Firebase (v8 version)
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-// 全局倒计时数据管理
+// Global countdown data management
 class GlobalCountdownManager {
     constructor() {
         this.countdownRef = database.ref('countdown');
         this.setupRealtimeListener();
     }
 
-    // 设置实时监听器
+    // Set up real-time listener
     setupRealtimeListener() {
         this.countdownRef.on('value', (snapshot) => {
             const data = snapshot.val();
@@ -33,7 +33,7 @@ class GlobalCountdownManager {
         });
     }
 
-    // 更新本地存储
+    // Update local storage
     updateLocalStorage(data) {
         try {
             localStorage.setItem('memeCoinCountdown', JSON.stringify(data));
@@ -42,14 +42,14 @@ class GlobalCountdownManager {
         }
     }
 
-    // 通知页面更新
+    // Notify page update
     notifyCountdownUpdate(data) {
         window.dispatchEvent(new CustomEvent('countdownUpdate', {
             detail: data
         }));
     }
 
-    // 重置倒计时（管理员功能）
+    // Reset countdown (admin function)
     async resetCountdown(minutes) {
         try {
             const now = new Date();
@@ -72,7 +72,7 @@ class GlobalCountdownManager {
         }
     }
 
-    // 更新活跃用户数
+    // Update active user count
     async updateActiveUsers(count) {
         try {
             await this.countdownRef.child('activeUsers').set(count);
@@ -81,7 +81,7 @@ class GlobalCountdownManager {
         }
     }
 
-    // 获取当前倒计时数据
+    // Get current countdown data
     async getCurrentCountdown() {
         try {
             const snapshot = await this.countdownRef.once('value');
@@ -93,7 +93,7 @@ class GlobalCountdownManager {
     }
 }
 
-// 用户连接管理
+// User connection management
 class UserConnectionManager {
     constructor() {
         this.connectionsRef = database.ref('connections');
@@ -101,44 +101,44 @@ class UserConnectionManager {
         this.setupConnection();
     }
 
-    // 生成用户ID
+    // Generate user ID
     generateUserId() {
         return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
-    // 设置连接
+    // Set up connection
     setupConnection() {
         const userRef = this.connectionsRef.child(this.userId);
         
-        // 设置用户在线状态
+        // Set user online status
         userRef.set({
             connected: true,
             lastSeen: new Date().toISOString(),
             userAgent: navigator.userAgent
         });
 
-        // 监听连接状态
+        // Monitor connection status
         userRef.onDisconnect().remove();
 
-        // 定期更新最后活跃时间
+        // Periodically update last active time
         setInterval(() => {
             userRef.update({
                 lastSeen: new Date().toISOString()
             });
-        }, 30000); // 每30秒更新一次
+        }, 30000); // Update every 30 seconds
     }
 
-    // 断开连接
+    // Disconnect
     disconnect() {
         this.connectionsRef.child(this.userId).remove();
     }
 }
 
-// 全局实例
+// Global instances
 window.globalCountdownManager = new GlobalCountdownManager();
 window.userConnectionManager = new UserConnectionManager();
 
-// 页面卸载时清理
+// Clean up when page unloads
 window.addEventListener('beforeunload', () => {
     if (window.userConnectionManager) {
         window.userConnectionManager.disconnect();
