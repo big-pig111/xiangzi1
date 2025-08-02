@@ -195,5 +195,42 @@
 
     <!-- 后台管理脚本 -->
     <script src="../admin.js"></script>
+    <script>
+        // 等待DOM加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Admin page loaded, initializing...');
+            
+            // 检查必要的DOM元素是否存在
+            const countdownMinutes = document.getElementById('countdownMinutes');
+            const resetCountdownBtn = document.getElementById('resetCountdownBtn');
+            
+            if (countdownMinutes && resetCountdownBtn) {
+                console.log('Required DOM elements found');
+                
+                // 绑定重置倒计时按钮事件
+                resetCountdownBtn.addEventListener('click', function() {
+                    const minutes = parseInt(countdownMinutes.value) || 5;
+                    console.log('Resetting countdown to', minutes, 'minutes');
+                    
+                    if (window.globalCountdownManager) {
+                        window.globalCountdownManager.resetCountdown(minutes).then((success) => {
+                            if (success) {
+                                console.log('Countdown reset successfully');
+                                alert('倒计时已重置为 ' + minutes + ' 分钟！');
+                            } else {
+                                console.error('Failed to reset countdown');
+                                alert('重置倒计时失败，请检查Firebase连接');
+                            }
+                        });
+                    } else {
+                        console.error('GlobalCountdownManager not found');
+                        alert('Firebase未初始化，请刷新页面重试');
+                    }
+                });
+            } else {
+                console.error('Required DOM elements not found');
+            }
+        });
+    </script>
 </body>
 </html> 
