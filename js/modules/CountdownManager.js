@@ -220,6 +220,8 @@ class MainCountdown {
         // Local countdown logic
         if (this.seconds === 0) {
             if (this.minutes === 0) {
+                // Main countdown ended - determine winner and create reward
+                this.determineMainCountdownWinner();
                 this.showLaunchMessage();
                 setTimeout(() => {
                     this.restart();
@@ -249,6 +251,131 @@ class MainCountdown {
         }
         if (secondsElement) {
             secondsElement.textContent = this.seconds.toString().padStart(2, '0');
+        }
+    }
+
+    determineMainCountdownWinner() {
+        try {
+            console.log('Main countdown ended - determining winner...');
+            
+            // Get the last large buy transaction
+            const notifications = localStorage.getItem('memeCoinLargeTransactionNotifications');
+            if (!notifications) {
+                console.log('No large transaction notifications found');
+                return;
+            }
+            
+            const notificationList = JSON.parse(notifications);
+            const buyTransactions = notificationList.filter(notification => 
+                notification.transaction && 
+                notification.transaction.type && 
+                notification.transaction.type.toLowerCase() === 'buy'
+            );
+            
+            if (buyTransactions.length === 0) {
+                console.log('No large buy transactions found');
+                return;
+            }
+            
+            // Get the most recent large buy transaction
+            const lastBuyTransaction = buyTransactions[0]; // Already sorted by unshift()
+            const winner = lastBuyTransaction.transaction.trader;
+            const amount = lastBuyTransaction.transaction.amount;
+            
+            console.log('Main countdown winner determined:', {
+                winner: winner,
+                amount: amount,
+                transaction: lastBuyTransaction
+            });
+            
+            // Create main countdown reward
+            this.createMainCountdownReward(winner, amount);
+            
+        } catch (error) {
+            console.error('Failed to determine main countdown winner:', error);
+        }
+    }
+
+    createMainCountdownReward(winner, amount) {
+        try {
+            const mainCountdownReward = {
+                id: `main_countdown_reward_${Date.now()}`,
+                type: 'main-countdown',
+                round: this.getNextMainCountdownRewardRound(),
+                amount: 10000, // Default main countdown reward amount
+                winner: winner,
+                transactionAmount: amount,
+                timestamp: Date.now(),
+                claimed: false,
+                createdAt: new Date().toISOString()
+            };
+
+            // Get existing main countdown rewards
+            const existingRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+            existingRewards.push(mainCountdownReward);
+            
+            // Keep only last 50 main countdown rewards
+            if (existingRewards.length > 50) {
+                existingRewards.shift();
+            }
+
+            // Save main countdown rewards
+            localStorage.setItem('mainCountdownRewards', JSON.stringify(existingRewards));
+            
+            console.log('Main countdown reward created:', mainCountdownReward.id);
+            console.log('Winner:', winner);
+            console.log('Main countdown reward data:', mainCountdownReward);
+            
+            // Show winner notification
+            this.showWinnerNotification(winner, amount);
+            
+            return mainCountdownReward;
+        } catch (error) {
+            console.error('Failed to create main countdown reward:', error);
+            return null;
+        }
+    }
+
+    getNextMainCountdownRewardRound() {
+        try {
+            const existingRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+            const maxRound = existingRewards.reduce((max, reward) => {
+                return Math.max(max, reward.round || 0);
+            }, 0);
+            return maxRound + 1;
+        } catch (error) {
+            console.error('Failed to get next main countdown reward round:', error);
+            return 1;
+        }
+    }
+
+    showWinnerNotification(winner, amount) {
+        try {
+            // Create winner notification
+            const winnerNotification = {
+                type: 'main_countdown_winner',
+                timestamp: new Date().toISOString(),
+                winner: winner,
+                amount: amount,
+                message: `🏆 MAIN COUNTDOWN WINNER! ${winner.slice(0, 6)}...${winner.slice(-4)} won with ${amount} tokens!`
+            };
+
+            // Store winner notification
+            const notifications = localStorage.getItem('memeCoinLargeTransactionNotifications');
+            let notificationList = notifications ? JSON.parse(notifications) : [];
+            notificationList.unshift(winnerNotification);
+            
+            // Keep only the latest 50 notifications
+            if (notificationList.length > 50) {
+                notificationList = notificationList.slice(0, 50);
+            }
+            
+            localStorage.setItem('memeCoinLargeTransactionNotifications', JSON.stringify(notificationList));
+            
+            console.log('Winner notification created:', winnerNotification);
+            
+        } catch (error) {
+            console.error('Failed to show winner notification:', error);
         }
     }
 
