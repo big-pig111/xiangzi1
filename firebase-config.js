@@ -12,7 +12,7 @@ const firebaseConfig = {
 
 // 初始化 Firebase (v9 模块化版本)
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
-import { getDatabase, ref, onValue, set, push, onDisconnect, remove, update, once, child } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js';
+import { getDatabase, ref, onValue, set, push, onDisconnect, remove, update, get, child } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js';
 
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
@@ -88,7 +88,7 @@ class GlobalCountdownManager {
     // 获取当前倒计时数据
     async getCurrentCountdown() {
         try {
-            const snapshot = await once(this.countdownRef);
+            const snapshot = await get(this.countdownRef);
             return snapshot.val();
         } catch (error) {
             console.error('Failed to get countdown data:', error);
