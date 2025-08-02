@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme Coin 后台管理</title>
+    <meta name="description" content="Meme Coin 后台管理系统">
+    <meta name="keywords" content="admin, management, meme coin, rpc">
+    
+    <!-- 外部样式表 -->
+    <link rel="stylesheet" href="admin.css">
+    
+    <!-- Font Awesome 图标 -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK v8 -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="firebase-config-v8.js"></script>
+</head>
+<body>
+    <!-- 背景装饰 -->
+    <div class="bg-decoration"></div>
+    
+    <!-- 主容器 -->
+    <div class="admin-container">
+        <!-- 顶部导航 -->
+        <header class="admin-header">
+            <div class="header-content">
+                <h1 class="admin-title">
+                    <i class="fa fa-cog"></i>
+                    Meme Coin 后台管理系统
+                </h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="saveAllBtn">
+                        <i class="fa fa-save"></i>
+                        保存所有配置
+                    </button>
+                    <button class="btn btn-secondary" id="refreshBtn">
+                        <i class="fa fa-refresh"></i>
+                        刷新状态
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <main class="admin-main">
+            <!-- 配置面板 -->
+            <div class="config-panels">
+                <!-- RPC配置面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-server"></i>
+                            QuickNode RPC 配置
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="rpcStatusDot"></span>
+                            <span class="status-text" id="rpcStatusText">未连接</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label for="rpcUrl">RPC URL:</label>
+                            <input 
+                                type="text" 
+                                id="rpcUrl" 
+                                placeholder="https://your-endpoint.quiknode.pro/your-api-key/"
+                                class="form-input"
+                            >
+                            <div class="input-help">输入你的QuickNode RPC端点URL</div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-success" id="testRpcBtn">
+                                <i class="fa fa-plug"></i>
+                                测试连接
+                            </button>
+                            <button class="btn btn-info" id="saveRpcBtn">
+                                <i class="fa fa-save"></i>
+                                保存RPC配置
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 代币配置面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-bitcoin"></i>
+                            代币地址配置
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="tokenStatusDot"></span>
+                            <span class="status-text" id="tokenStatusText">未设置</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label for="tokenAddress">代币地址:</label>
+                            <input 
+                                type="text" 
+                                id="tokenAddress" 
+                                placeholder="输入Solana代币地址"
+                                class="form-input"
+                            >
+                            <div class="input-help">输入要监控的Solana代币合约地址</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="tokenName">代币名称:</label>
+                            <input 
+                                type="text" 
+                                id="tokenName" 
+                                placeholder="代币显示名称"
+                                class="form-input"
+                            >
+                            <div class="input-help">代币在前台显示的名称</div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-success" id="validateTokenBtn">
+                                <i class="fa fa-check"></i>
+                                验证地址
+                            </button>
+                            <button class="btn btn-info" id="saveTokenBtn">
+                                <i class="fa fa-save"></i>
+                                保存代币配置
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 倒计时配置面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-clock-o"></i>
+                            倒计时配置
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="countdownStatusDot"></span>
+                            <span class="status-text" id="countdownStatusText">运行中</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label for="countdownMinutes">倒计时分钟数:</label>
+                            <input 
+                                type="number" 
+                                id="countdownMinutes" 
+                                value="5"
+                                min="1"
+                                max="1440"
+                                class="form-input"
+                            >
+                            <div class="input-help">设置倒计时的分钟数（1-1440分钟）</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="countdownMessage">倒计时消息:</label>
+                            <textarea 
+                                id="countdownMessage" 
+                                placeholder="倒计时结束时的显示消息"
+                                class="form-textarea"
+                                rows="3"
+                            >TO THE MOON!!! 🚀</textarea>
+                            <div class="input-help">倒计时结束时的显示消息</div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-warning" id="resetCountdownBtn">
+                                <i class="fa fa-refresh"></i>
+                                重置倒计时
+                            </button>
+                            <button class="btn btn-info" id="saveCountdownBtn">
+                                <i class="fa fa-save"></i>
+                                保存倒计时配置
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 持仓倒计时配置面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-trophy"></i>
+                            持仓倒计时配置
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="rewardCountdownStatusDot"></span>
+                            <span class="status-text" id="rewardCountdownStatusText">运行中</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label for="rewardCountdownMinutes">持仓倒计时分钟数:</label>
+                            <input 
+                                type="number" 
+                                id="rewardCountdownMinutes" 
+                                value="20"
+                                min="1"
+                                max="1440"
+                                class="form-input"
+                            >
+                            <div class="input-help">设置持仓奖励倒计时的分钟数（1-1440分钟）</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="rewardCountdownSeconds">持仓倒计时秒数:</label>
+                            <input 
+                                type="number" 
+                                id="rewardCountdownSeconds" 
+                                value="0"
+                                min="0"
+                                max="59"
+                                class="form-input"
+                            >
+                            <div class="input-help">设置持仓奖励倒计时的秒数（0-59秒）</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>当前持仓倒计时状态:</label>
+                            <div class="status-display" id="rewardCountdownStatusDisplay">
+                                <span class="status-item">
+                                    <i class="fa fa-clock-o"></i>
+                                    剩余时间: <span id="rewardCountdownRemaining">20:00</span>
+                                </span>
+                                <span class="status-item">
+                                    <i class="fa fa-sync"></i>
+                                    最后更新: <span id="rewardCountdownLastUpdate">未知</span>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-warning" id="resetRewardCountdownBtn">
+                                <i class="fa fa-refresh"></i>
+                                重置持仓倒计时
+                            </button>
+                            <button class="btn btn-info" id="saveRewardCountdownBtn">
+                                <i class="fa fa-save"></i>
+                                保存持仓倒计时配置
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 持仓快照管理面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-database"></i>
+                            持仓快照管理
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="holdersSnapshotStatusDot"></span>
+                            <span class="status-text" id="holdersSnapshotStatusText">未配置</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label>持仓快照统计:</label>
+                            <div class="status-display" id="holdersSnapshotStatusDisplay">
+                                <span class="status-item">
+                                    <i class="fa fa-database"></i>
+                                    总快照数: <span id="holdersSnapshotCount">0</span>
+                                </span>
+                                <span class="status-item">
+                                    <i class="fa fa-clock-o"></i>
+                                    最新快照: <span id="holdersSnapshotLatest">--</span>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-info" id="viewHoldersSnapshotsBtn">
+                                <i class="fa fa-eye"></i>
+                                查看持仓快照
+                            </button>
+                            <button class="btn btn-success" id="exportHoldersSnapshotsBtn">
+                                <i class="fa fa-download"></i>
+                                导出持仓快照
+                            </button>
+                            <button class="btn btn-danger" id="clearHoldersSnapshotsBtn">
+                                <i class="fa fa-trash"></i>
+                                清空持仓快照
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 交易检测控制面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-search"></i>
+                            交易检测控制
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="detectionStatusDot"></span>
+                            <span class="status-text" id="detectionStatusText">未启动</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label>检测状态:</label>
+                            <div class="status-display" id="detectionStatusDisplay">
+                                <span class="status-item">
+                                    <i class="fa fa-circle"></i>
+                                    RPC连接: <span id="rpcConnectionStatus">未连接</span>
+                                </span>
+                                <span class="status-item">
+                                    <i class="fa fa-circle"></i>
+                                    代币地址: <span id="tokenAddressStatus">未设置</span>
+                                </span>
+                                <span class="status-item">
+                                    <i class="fa fa-circle"></i>
+                                    检测运行: <span id="detectionRunningStatus">未启动</span>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>检测统计:</label>
+                            <div class="stats-display" id="detectionStats">
+                                <div class="stat-item">
+                                    <span class="stat-label">前台记录:</span>
+                                    <span class="stat-value">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">后台记录:</span>
+                                    <span class="stat-value">0/100</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">最后更新:</span>
+                                    <span class="stat-value">未知</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">最后上传:</span>
+                                    <span class="stat-value">未知</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-success" id="startDetectionBtn">
+                                <i class="fa fa-play"></i>
+                                启动检测
+                            </button>
+                            <button class="btn btn-danger" id="stopDetectionBtn" disabled>
+                                <i class="fa fa-stop"></i>
+                                停止检测
+                            </button>
+                            <button class="btn btn-secondary" id="refreshDetectionBtn">
+                                <i class="fa fa-refresh"></i>
+                                刷新状态
+                            </button>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-info" id="viewTransactionsBtn">
+                                <i class="fa fa-list"></i>
+                                查看记录
+                            </button>
+                            <button class="btn btn-warning" id="exportTransactionsBtn">
+                                <i class="fa fa-download"></i>
+                                导出记录
+                            </button>
+                            <button class="btn btn-danger" id="clearTransactionsBtn">
+                                <i class="fa fa-trash"></i>
+                                清除记录
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 大额交易通知面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-exclamation-triangle"></i>
+                            大额交易通知
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="largeTransactionStatusDot"></span>
+                            <span class="status-text" id="largeTransactionStatusText">监控中</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label>大额交易阈值:</label>
+                            <div class="threshold-display">
+                                <span class="threshold-value">1,000,000 代币</span>
+                                <span class="threshold-info">超过此数量的交易将触发通知并增加倒计时30秒</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>通知统计:</label>
+                            <div class="stats-display" id="largeTransactionStats">
+                                <div class="stat-item">
+                                    <span class="stat-label">今日通知:</span>
+                                    <span class="stat-value" id="todayNotifications">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">总通知数:</span>
+                                    <span class="stat-value" id="totalNotifications">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">最后通知:</span>
+                                    <span class="stat-value" id="lastNotificationTime">无</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">倒计时增加:</span>
+                                    <span class="stat-value" id="countdownIncreases">0 次</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>最近大额交易:</label>
+                            <div class="recent-notifications" id="recentLargeTransactions">
+                                <div class="no-notifications">暂无大额交易记录</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-info" id="viewLargeTransactionsBtn">
+                                <i class="fa fa-list"></i>
+                                查看所有通知
+                            </button>
+                            <button class="btn btn-warning" id="exportLargeTransactionsBtn">
+                                <i class="fa fa-download"></i>
+                                导出通知记录
+                            </button>
+                            <button class="btn btn-danger" id="clearLargeTransactionsBtn">
+                                <i class="fa fa-trash"></i>
+                                清除通知记录
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 成功地址管理面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-trophy"></i>
+                            成功地址管理
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="successAddressStatusDot"></span>
+                            <span class="status-text" id="successAddressStatusText">监控中</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label>成功地址说明:</label>
+                            <div class="info-display">
+                                <span class="info-text">大额买入交易（>1,000,000代币）的地址将自动添加到成功地址列表</span>
+                                <span class="info-detail">最多保留5个最新地址，所有用户同步显示</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>地址统计:</label>
+                            <div class="stats-display" id="successAddressStats">
+                                <div class="stat-item">
+                                    <span class="stat-label">当前地址数:</span>
+                                    <span class="stat-value" id="currentAddressCount">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">今日新增:</span>
+                                    <span class="stat-value" id="todayNewAddresses">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">最后更新:</span>
+                                    <span class="stat-value" id="lastAddressUpdate">无</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">总交易量:</span>
+                                    <span class="stat-value" id="totalAddressVolume">0 代币</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>当前成功地址:</label>
+                            <div class="address-list-container" id="adminSuccessAddresses">
+                                <div class="no-addresses">暂无成功地址</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-info" id="viewSuccessAddressesBtn">
+                                <i class="fa fa-list"></i>
+                                查看详细列表
+                            </button>
+                            <button class="btn btn-warning" id="exportSuccessAddressesBtn">
+                                <i class="fa fa-download"></i>
+                                导出地址记录
+                            </button>
+                            <button class="btn btn-danger" id="clearSuccessAddressesBtn">
+                                <i class="fa fa-trash"></i>
+                                清除所有地址
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 奖励数据管理面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-gift"></i>
+                            奖励数据管理
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="rewardDataStatusDot"></span>
+                            <span class="status-text" id="rewardDataStatusText">监控中</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label>奖励数据说明:</label>
+                            <div class="info-display">
+                                <span class="info-text">管理主倒计时奖励和持仓奖励数据，包括多轮奖励累积和领取记录</span>
+                                <span class="info-detail">主倒计时奖励：10,000积分，持仓奖励：3,000积分</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>奖励统计:</label>
+                            <div class="stats-display" id="rewardDataStats">
+                                <div class="stat-item">
+                                    <span class="stat-label">主倒计时奖励:</span>
+                                    <span class="stat-value" id="mainCountdownRewardCount">0 轮</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">持仓奖励:</span>
+                                    <span class="stat-value" id="holdingRewardCount">0 轮</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">已领取奖励:</span>
+                                    <span class="stat-value" id="claimedRewardCount">0 次</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">总发放积分:</span>
+                                    <span class="stat-value" id="totalRewardPoints">0 积分</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>最近奖励记录:</label>
+                            <div class="recent-rewards" id="recentRewards">
+                                <div class="no-rewards">暂无奖励记录</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-info" id="viewRewardDataBtn">
+                                <i class="fa fa-eye"></i>
+                                查看奖励数据
+                            </button>
+                            <button class="btn btn-success" id="exportRewardDataBtn">
+                                <i class="fa fa-download"></i>
+                                导出奖励数据
+                            </button>
+                            <button class="btn btn-warning" id="viewRewardHistoryBtn">
+                                <i class="fa fa-history"></i>
+                                查看领取历史
+                            </button>
+                            <button class="btn btn-danger" id="clearRewardDataBtn">
+                                <i class="fa fa-trash"></i>
+                                清除奖励数据
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 系统状态面板 -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-dashboard"></i>
+                            系统状态
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="systemStatusDot"></span>
+                            <span class="status-text" id="systemStatusText">正常</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="status-grid">
+                            <div class="status-item">
+                                <div class="status-label">前台访问</div>
+                                <div class="status-value">
+                                    <a href="index.html" target="_blank" class="status-link">
+                                        <i class="fa fa-external-link"></i>
+                                        查看前台
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div class="status-item">
+                                <div class="status-label">最后更新</div>
+                                <div class="status-value" id="lastUpdateTime">--</div>
+                            </div>
+                            
+                            <div class="status-item">
+                                <div class="status-label">配置版本</div>
+                                <div class="status-value" id="configVersion">v1.0.0</div>
+                            </div>
+                            
+                            <div class="status-item">
+                                <div class="status-label">系统运行时间</div>
+                                <div class="status-value" id="uptime">--</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-danger" id="clearCacheBtn">
+                                <i class="fa fa-trash"></i>
+                                清除缓存
+                            </button>
+                            <button class="btn btn-warning" id="exportConfigBtn">
+                                <i class="fa fa-download"></i>
+                                导出配置
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 日志面板 -->
+            <section class="log-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">
+                        <i class="fa fa-list"></i>
+                        系统日志
+                    </h2>
+                    <div class="panel-actions">
+                        <button class="btn btn-sm btn-secondary" id="clearLogBtn">
+                            <i class="fa fa-trash"></i>
+                            清除日志
+                        </button>
+                        <button class="btn btn-sm btn-info" id="exportLogBtn">
+                            <i class="fa fa-download"></i>
+                            导出日志
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="log-content" id="systemLog">
+                    <div class="log-entry info">
+                        <span class="log-time">[系统启动]</span>
+                        <span class="log-message">后台管理系统已启动</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 底部信息 -->
+        <footer class="admin-footer">
+            <div class="footer-content">
+                <p>&copy; 2024 Meme Coin 后台管理系统</p>
+                <p>版本: v1.0.0 | 最后更新: <span id="footerUpdateTime">--</span></p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 配置模态框 -->
+    <div class="modal" id="configModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">配置确认</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- 模态框内容 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modalCancel">取消</button>
+                <button class="btn btn-primary" id="modalConfirm">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 交易记录模态框 -->
+    <div class="modal" id="transactionModal">
+        <div class="modal-content modal-large">
+            <div id="transactionModalContent">
+                <!-- 交易记录内容 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 通用模态框 -->
+    <div class="modal" id="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">标题</h3>
+                <button class="modal-close" onclick="window.adminApp.configManager.closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalContent">
+                <!-- 模态框内容 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="window.adminApp.configManager.closeModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 外部脚本 -->
+    <script src="admin.js"></script>
+</body>
+</html> 
