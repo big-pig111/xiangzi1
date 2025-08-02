@@ -21,7 +21,7 @@
             position: relative;
         }
 
-        /* 背景装饰元素 */
+        /* Background decoration elements */
         body::before {
             content: '';
             position: fixed;
@@ -50,7 +50,7 @@
             z-index: -1;
         }
 
-        /* 漂浮的奖励图标 */
+        /* Floating reward icons */
         .floating-reward {
             position: fixed;
             font-size: 2.5rem;
@@ -373,7 +373,7 @@
             to { transform: translateX(-50%) translateY(0); }
         }
 
-        /* 装饰元素 */
+        /* Decoration elements */
         .reward-section::before {
             content: '🏆';
             position: absolute;
@@ -561,7 +561,7 @@
     </style>
 </head>
 <body>
-    <!-- 漂浮的奖励图标 -->
+    <!-- Floating reward icons -->
     <div class="floating-reward">🏆</div>
     <div class="floating-reward">💎</div>
     <div class="floating-reward">🎁</div>
@@ -734,6 +734,11 @@
             checkWalletConnection();
             loadRewardData();
             updateDisplay();
+            
+            // Sync points balance from backend when wallet is connected
+            if (walletConnected && walletAddress) {
+                syncPointsFromBackend();
+            }
         });
 
         // Check wallet connection
@@ -797,11 +802,16 @@
             const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
             let mainCountdownEligibleCount = 0;
             let mainCountdownTotalPoints = 0;
+            let mainCountdownClaimedPoints = 0;
 
             mainCountdownRewards.forEach((reward, index) => {
-                if (reward.winner === walletAddress && !reward.claimed) {
-                    mainCountdownEligibleCount++;
-                    mainCountdownTotalPoints += reward.amount || 10000;
+                if (reward.winner === walletAddress) {
+                    if (!reward.claimed) {
+                        mainCountdownEligibleCount++;
+                        mainCountdownTotalPoints += reward.amount || 10000;
+                    } else {
+                        mainCountdownClaimedPoints += reward.amount || 10000;
+                    }
                 }
             });
 
@@ -809,11 +819,16 @@
             const holdingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
             let holdingEligibleCount = 0;
             let holdingTotalPoints = 0;
+            let holdingClaimedPoints = 0;
 
             holdingRewards.forEach((reward, index) => {
-                if (reward.eligibleAddresses && reward.eligibleAddresses.includes(walletAddress) && !reward.claimed) {
-                    holdingEligibleCount++;
-                    holdingTotalPoints += reward.amount || 3000;
+                if (reward.eligibleAddresses && reward.eligibleAddresses.includes(walletAddress)) {
+                    if (!reward.claimed) {
+                        holdingEligibleCount++;
+                        holdingTotalPoints += reward.amount || 3000;
+                    } else {
+                        holdingClaimedPoints += reward.amount || 3000;
+                    }
                 }
             });
 
@@ -821,14 +836,16 @@
             mainCountdownEligible = mainCountdownEligibleCount > 0;
             holdingEligible = holdingEligibleCount > 0;
 
-            // Calculate total points
-            totalPoints = mainCountdownTotalPoints + holdingTotalPoints;
+            // Calculate total points (including claimed points for exchange)
+            totalPoints = mainCountdownTotalPoints + holdingTotalPoints + mainCountdownClaimedPoints + holdingClaimedPoints;
 
             // Store counts for display
             window.mainCountdownEligibleCount = mainCountdownEligibleCount;
             window.holdingEligibleCount = holdingEligibleCount;
             window.mainCountdownTotalPoints = mainCountdownTotalPoints;
             window.holdingTotalPoints = holdingTotalPoints;
+            window.mainCountdownClaimedPoints = mainCountdownClaimedPoints;
+            window.holdingClaimedPoints = holdingClaimedPoints;
         }
 
         // Update display
@@ -892,7 +909,7 @@
         }
 
         // Claim main countdown reward
-        function claimMainCountdown() {
+        async function claimMainCountdown() {
             if (!walletConnected) {
                 showNotification('Please connect your wallet first!', 'error');
                 return;
@@ -906,36 +923,43 @@
             // Simulate claiming process
             showNotification(`Claiming ${window.mainCountdownTotalPoints.toLocaleString()} main countdown points...`, 'info');
             
-            setTimeout(() => {
+            try {
                 // Mark all eligible rewards as claimed
                 const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
                 let claimedCount = 0;
+                let claimedPoints = 0;
                 
                 mainCountdownRewards.forEach((reward, index) => {
                     if (reward.winner === walletAddress && !reward.claimed) {
                         reward.claimed = true;
                         reward.claimedAt = new Date().toISOString();
                         claimedCount++;
+                        claimedPoints += reward.amount || 10000;
                     }
                 });
                 
                 localStorage.setItem('mainCountdownRewards', JSON.stringify(mainCountdownRewards));
 
+                // Sync claimed points to backend
+                await syncClaimedPointsToBackend(walletAddress, claimedPoints, 'main-countdown');
+
                 // Add to reward history
-                addToRewardHistory(`Main Countdown Winner (${claimedCount} rounds)`, window.mainCountdownTotalPoints, new Date().toISOString());
+                addToRewardHistory(`Main Countdown Winner (${claimedCount} rounds)`, claimedPoints, new Date().toISOString());
 
                 // Update display
                 mainCountdownEligible = false;
-                totalPoints -= window.mainCountdownTotalPoints;
                 loadRewardData();
                 updateDisplay();
 
-                showNotification(`Successfully claimed ${window.mainCountdownTotalPoints.toLocaleString()} points! 🏆`, 'success');
-            }, 2000);
+                showNotification(`Successfully claimed ${claimedPoints.toLocaleString()} points! 🏆`, 'success');
+            } catch (error) {
+                console.error('Failed to claim main countdown reward:', error);
+                showNotification(`Failed to claim reward: ${error.message}`, 'error');
+            }
         }
 
         // Claim holding reward
-        function claimHolding() {
+        async function claimHolding() {
             if (!walletConnected) {
                 showNotification('Please connect your wallet first!', 'error');
                 return;
@@ -949,32 +973,39 @@
             // Simulate claiming process
             showNotification(`Claiming ${window.holdingTotalPoints.toLocaleString()} holding points...`, 'info');
             
-            setTimeout(() => {
+            try {
                 // Mark all eligible rewards as claimed
                 const holdingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
                 let claimedCount = 0;
+                let claimedPoints = 0;
                 
                 holdingRewards.forEach((reward, index) => {
                     if (reward.eligibleAddresses && reward.eligibleAddresses.includes(walletAddress) && !reward.claimed) {
                         reward.claimed = true;
                         reward.claimedAt = new Date().toISOString();
                         claimedCount++;
+                        claimedPoints += reward.amount || 3000;
                     }
                 });
                 
                 localStorage.setItem('holdingRewards', JSON.stringify(holdingRewards));
 
+                // Sync claimed points to backend
+                await syncClaimedPointsToBackend(walletAddress, claimedPoints, 'holding');
+
                 // Add to reward history
-                addToRewardHistory(`Holding Reward (${claimedCount} rounds)`, window.holdingTotalPoints, new Date().toISOString());
+                addToRewardHistory(`Holding Reward (${claimedCount} rounds)`, claimedPoints, new Date().toISOString());
 
                 // Update display
                 holdingEligible = false;
-                totalPoints -= window.holdingTotalPoints;
                 loadRewardData();
                 updateDisplay();
 
-                showNotification(`Successfully claimed ${window.holdingTotalPoints.toLocaleString()} points! 💎`, 'success');
-            }, 2000);
+                showNotification(`Successfully claimed ${claimedPoints.toLocaleString()} points! 💎`, 'success');
+            } catch (error) {
+                console.error('Failed to claim holding reward:', error);
+                showNotification(`Failed to claim reward: ${error.message}`, 'error');
+            }
         }
 
         // Add to reward history
@@ -1126,8 +1157,12 @@
                 return;
             }
 
-            if (exchangeAmount > totalPoints) {
-                showNotification(`Insufficient points. You have ${totalPoints.toLocaleString()} points available!`, 'error');
+            // Get latest points balance from backend
+            const backendPoints = await getBackendPointsBalance(walletAddress);
+            const availablePoints = backendPoints || totalPoints;
+
+            if (exchangeAmount > availablePoints) {
+                showNotification(`Insufficient points. You have ${availablePoints.toLocaleString()} points available!`, 'error');
                 return;
             }
 
@@ -1194,6 +1229,96 @@
                     exchangeBtn.disabled = false;
                     updateExchangeButton();
                 }, 3000);
+            }
+        }
+
+        // Sync claimed points to backend
+        async function syncClaimedPointsToBackend(walletAddress, pointsAmount, rewardType) {
+            try {
+                // Firebase configuration - replace with your actual Firebase config
+                const firebaseConfig = {
+                    apiKey: "your-api-key",
+                    authDomain: "your-project.firebaseapp.com",
+                    projectId: "your-project-id",
+                    storageBucket: "your-project.appspot.com",
+                    messagingSenderId: "your-sender-id",
+                    appId: "your-app-id"
+                };
+
+                // Initialize Firebase if not already initialized
+                if (!window.firebase) {
+                    // Load Firebase SDK
+                    await loadFirebaseSDK();
+                }
+
+                // Call the sync points cloud function
+                const callable = firebase.functions().httpsCallable('syncClaimedPoints');
+                const result = await callable({
+                    walletAddress: walletAddress,
+                    pointsAmount: pointsAmount,
+                    rewardType: rewardType,
+                    timestamp: new Date().toISOString()
+                });
+
+                console.log('Points synced to backend:', result.data);
+                return result.data;
+                
+            } catch (error) {
+                console.error('Failed to sync points to backend:', error);
+                // Don't throw error, just log it - local storage is still updated
+                return null;
+            }
+        }
+
+        // Get points balance from backend
+        async function getBackendPointsBalance(walletAddress) {
+            try {
+                // Firebase configuration - replace with your actual Firebase config
+                const firebaseConfig = {
+                    apiKey: "your-api-key",
+                    authDomain: "your-project.firebaseapp.com",
+                    projectId: "your-project-id",
+                    storageBucket: "your-project.appspot.com",
+                    messagingSenderId: "your-sender-id",
+                    appId: "your-app-id"
+                };
+
+                // Initialize Firebase if not already initialized
+                if (!window.firebase) {
+                    // Load Firebase SDK
+                    await loadFirebaseSDK();
+                }
+
+                // Call the get points balance cloud function
+                const callable = firebase.functions().httpsCallable('getPointsBalance');
+                const result = await callable({
+                    walletAddress: walletAddress
+                });
+
+                console.log('Backend points balance:', result.data);
+                return result.data.points || 0;
+                
+            } catch (error) {
+                console.error('Failed to get backend points balance:', error);
+                // Return null to use local points as fallback
+                return null;
+            }
+        }
+
+        // Sync points balance from backend
+        async function syncPointsFromBackend() {
+            if (!walletAddress) return;
+            
+            try {
+                const backendPoints = await getBackendPointsBalance(walletAddress);
+                if (backendPoints !== null) {
+                    // Update total points with backend balance
+                    totalPoints = backendPoints;
+                    updateDisplay();
+                    console.log('Points synced from backend:', backendPoints);
+                }
+            } catch (error) {
+                console.error('Failed to sync points from backend:', error);
             }
         }
 
