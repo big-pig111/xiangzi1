@@ -1,14 +1,14 @@
-/* 基础样式重置 */
+/* Basic Style Reset */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
-/* 导入外部资源 */
+/* Import External Resources */
 @import url('https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css');
 
-/* 自定义颜色变量 */
+/* Custom Color Variables */
 :root {
     --primary-color: #2563eb;
     --secondary-color: #64748b;
@@ -30,7 +30,7 @@
     --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-/* 基础样式 */
+/* Basic Styles */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
@@ -39,7 +39,7 @@ body {
     line-height: 1.6;
 }
 
-/* 背景装饰 */
+/* Background Decoration */
 .bg-decoration {
     position: fixed;
     top: 0;
@@ -53,7 +53,7 @@ body {
     z-index: -1;
 }
 
-/* 主容器 */
+/* Main Container */
 .admin-container {
     max-width: 1400px;
     margin: 0 auto;
@@ -63,7 +63,7 @@ body {
     flex-direction: column;
 }
 
-/* 顶部导航 */
+/* Top Navigation */
 .admin-header {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
@@ -100,7 +100,7 @@ body {
     flex-wrap: wrap;
 }
 
-/* 主要内容区域 */
+/* Main Content Area */
 .admin-main {
     flex: 1;
     display: flex;
@@ -108,14 +108,14 @@ body {
     gap: 2rem;
 }
 
-/* 配置面板网格 */
+/* Configuration Panel Grid */
 .config-panels {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
     gap: 1.5rem;
 }
 
-/* 配置面板 */
+/* Configuration Panel */
 .config-panel {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -187,7 +187,7 @@ body {
     padding: 1.5rem;
 }
 
-/* 表单样式 */
+/* Form styles */
 .form-group {
     margin-bottom: 1.5rem;
 }
@@ -229,7 +229,7 @@ body {
     color: var(--text-muted);
 }
 
-/* 按钮样式 */
+/* Button styles */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -313,7 +313,7 @@ body {
     font-size: 0.75rem;
 }
 
-/* 表单操作区域 */
+/* Form action area */
 .form-actions {
     display: flex;
     gap: 0.5rem;
@@ -321,7 +321,7 @@ body {
     margin-top: 1rem;
 }
 
-/* 状态网格 */
+/* Status grid */
 .status-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -336,7 +336,7 @@ body {
     border: 1px solid var(--border-color);
 }
 
-/* 检测状态显示 */
+/* Detection status display */
 .status-display {
     background: var(--bg-primary);
     padding: 1rem;
@@ -375,7 +375,7 @@ body {
     color: var(--warning-color);
 }
 
-/* 统计显示 */
+/* Statistics display */
 .stats-display {
     background: var(--bg-primary);
     padding: 1rem;
@@ -432,7 +432,7 @@ body {
     text-decoration: underline;
 }
 
-/* 日志面板 */
+/* Log Panel */
 .log-panel {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -502,7 +502,7 @@ body {
     flex: 1;
 }
 
-/* 底部信息 */
+/* Footer Information */
 .admin-footer {
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
@@ -521,7 +521,7 @@ body {
     margin-bottom: 0.25rem;
 }
 
-/* 模态框 */
+/* Modal */
 .modal {
     display: none;
     position: fixed;
@@ -606,7 +606,7 @@ body {
     gap: 0.5rem;
 }
 
-/* 交易记录表格样式 */
+/* Transaction record table styles */
 .transaction-table {
     width: 100%;
     border-collapse: collapse;
@@ -614,7 +614,7 @@ body {
     margin-top: 1rem;
 }
 
-/* 数据表格样式 */
+/* Data table styles */
 .data-table {
     width: 100%;
     border-collapse: collapse;
@@ -647,7 +647,7 @@ body {
     background: var(--bg-primary);
 }
 
-/* 表格容器 */
+/* Table container */
 .table-container {
     max-height: 400px;
     overflow-y: auto;
@@ -683,7 +683,7 @@ body {
     background: rgba(0, 0, 0, 0.02);
 }
 
-/* 交易记录模态框内容 */
+/* Transaction record modal content */
 #transactionModalContent {
     max-height: 70vh;
     overflow-y: auto;
@@ -700,7 +700,7 @@ body {
     padding: 0;
 }
 
-/* 响应式设计 */
+/* Responsive design */
 @media (max-width: 768px) {
     .admin-container {
         padding: 0 0.5rem;
@@ -743,7 +743,7 @@ body {
     }
 }
 
-/* 滚动条样式 */
+/* Scrollbar styles */
 ::-webkit-scrollbar {
     width: 8px;
 }
@@ -761,7 +761,7 @@ body {
     background: var(--text-muted);
 }
 
-/* 动画效果 */
+/* Animation effects */
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -777,7 +777,7 @@ body {
     animation: fadeIn 0.5s ease-out;
 }
 
-/* 加载状态 */
+/* Loading state */
 .loading {
     opacity: 0.6;
     pointer-events: none;
@@ -802,7 +802,7 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-/* 大额交易通知面板样式 */
+/* Large transaction notification panel styles */
 .threshold-display {
     background: var(--bg-tertiary);
     padding: 1rem;
@@ -892,7 +892,7 @@ body {
     font-size: 0.8rem;
 }
 
-/* 成功地址管理面板样式 */
+/* Success address management panel styles */
 .info-display {
     background: rgba(37, 99, 235, 0.1);
     border: 1px solid var(--primary-color);
@@ -973,7 +973,7 @@ body {
     min-width: 80px;
 }
 
-/* 奖励数据管理样式 */
+/* Reward data management styles */
 .recent-rewards {
     max-height: 200px;
     overflow-y: auto;
@@ -1073,7 +1073,7 @@ body {
     color: white;
 }
 
-/* 奖励历史表格样式 */
+/* Reward history table styles */
 .reward-history-table {
     width: 100%;
     border-collapse: collapse;
