@@ -19,7 +19,126 @@
     <!-- Firebase SDK v8 -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="firebase-config-v8.js"></script>
+    <script>
+        // Firebase 配置 - 实时数据同步
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5Z5ieEbAcfQX0kxGSn9ldGXhzvAwx_8M",
+            authDomain: "chat-294cc.firebaseapp.com",
+            databaseURL: "https://chat-294cc-default-rtdb.firebaseio.com",
+            projectId: "chat-294cc",
+            storageBucket: "chat-294cc.firebasestorage.app",
+            messagingSenderId: "913615304269",
+            appId: "1:913615304269:web:0274ffaccb8e6b678e4e04",
+            measurementId: "G-SJR9NDW86B"
+        };
+
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // 全局倒计时数据管理
+        class GlobalCountdownManager {
+            constructor() {
+                this.countdownRef = database.ref('countdown');
+                this.setupRealtimeListener();
+            }
+
+            setupRealtimeListener() {
+                this.countdownRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        console.log('Received real-time countdown update:', data);
+                        this.updateLocalStorage(data);
+                        this.notifyCountdownUpdate(data);
+                    }
+                });
+            }
+
+            updateLocalStorage(data) {
+                try {
+                    localStorage.setItem('memeCoinCountdown', JSON.stringify(data));
+                } catch (error) {
+                    console.error('Failed to update localStorage:', error);
+                }
+            }
+
+            notifyCountdownUpdate(data) {
+                window.dispatchEvent(new CustomEvent('countdownUpdate', {
+                    detail: data
+                }));
+            }
+
+            async resetCountdown(minutes) {
+                try {
+                    const now = new Date();
+                    const newTargetDate = new Date(now.getTime() + minutes * 60 * 1000);
+                    
+                    const countdownData = {
+                        targetDate: newTargetDate.toISOString(),
+                        lastUpdate: new Date().toISOString(),
+                        resetBy: 'admin-panel',
+                        version: '2.0',
+                        activeUsers: 0
+                    };
+
+                    await this.countdownRef.set(countdownData);
+                    console.log('Countdown reset successfully:', countdownData);
+                    return true;
+                } catch (error) {
+                    console.error('Failed to reset countdown:', error);
+                    return false;
+                }
+            }
+        }
+
+        // 用户连接管理
+        class UserConnectionManager {
+            constructor() {
+                this.connectionsRef = database.ref('connections');
+                this.userId = this.generateUserId();
+                this.setupConnection();
+            }
+
+            generateUserId() {
+                return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            setupConnection() {
+                const userRef = this.connectionsRef.child(this.userId);
+                
+                userRef.set({
+                    connected: true,
+                    lastSeen: new Date().toISOString(),
+                    userAgent: navigator.userAgent
+                });
+
+                userRef.onDisconnect().remove();
+
+                setInterval(() => {
+                    userRef.update({
+                        lastSeen: new Date().toISOString()
+                    });
+                }, 30000);
+            }
+
+            disconnect() {
+                this.connectionsRef.child(this.userId).remove();
+            }
+        }
+
+        // 全局实例
+        window.globalCountdownManager = new GlobalCountdownManager();
+        window.userConnectionManager = new UserConnectionManager();
+
+        // 页面卸载时清理
+        window.addEventListener('beforeunload', () => {
+            if (window.userConnectionManager) {
+                window.userConnectionManager.disconnect();
+            }
+        });
+
+        console.log('Firebase real-time countdown manager initialized');
+    </script>
 </head>
 <body>
     <!-- Background decoration elements -->
