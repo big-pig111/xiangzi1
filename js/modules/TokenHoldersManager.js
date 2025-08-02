@@ -360,10 +360,67 @@ class TokenHoldersManager {
             console.log('Reward end holders snapshot created:', snapshot.snapshotId);
             console.log('Snapshot data:', snapshot);
             
+            // Create corresponding holding reward
+            this.createHoldingReward(snapshot);
+            
             return snapshot;
         } catch (error) {
             console.error('Failed to create reward end snapshot:', error);
             return null;
+        }
+    }
+
+    createHoldingReward(snapshot) {
+        try {
+            // Extract eligible addresses from snapshot
+            const eligibleAddresses = snapshot.holders.map(holder => holder.address);
+            
+            // Create holding reward record
+            const holdingReward = {
+                id: `holding_reward_${Date.now()}`,
+                type: 'holding',
+                round: this.getNextHoldingRewardRound(),
+                amount: 3000, // Default holding reward amount
+                eligibleAddresses: eligibleAddresses,
+                snapshotId: snapshot.snapshotId,
+                timestamp: snapshot.timestamp,
+                claimed: false,
+                createdAt: new Date().toISOString()
+            };
+
+            // Get existing holding rewards
+            const existingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
+            existingRewards.push(holdingReward);
+            
+            // Keep only last 50 holding rewards
+            if (existingRewards.length > 50) {
+                existingRewards.shift();
+            }
+
+            // Save holding rewards
+            localStorage.setItem('holdingRewards', JSON.stringify(existingRewards));
+            
+            console.log('Holding reward created:', holdingReward.id);
+            console.log('Eligible addresses count:', eligibleAddresses.length);
+            console.log('Holding reward data:', holdingReward);
+            
+            return holdingReward;
+        } catch (error) {
+            console.error('Failed to create holding reward:', error);
+            return null;
+        }
+    }
+
+    getNextHoldingRewardRound() {
+        try {
+            const existingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
+            const maxRound = existingRewards.reduce((max, reward) => {
+                return Math.max(max, reward.round || 0);
+            }, 0);
+            return maxRound + 1;
+        } catch (error) {
+            console.error('Failed to get next holding reward round:', error);
+            return 1;
         }
     }
 
