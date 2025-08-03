@@ -312,7 +312,12 @@ class TokenHoldersManager {
                 timestamp: Date.now(),
                 tokenAddress: this.tokenAddress
             };
-            localStorage.setItem('memeCoinTokenHolders', JSON.stringify(holdersData));
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinTokenHolders', holdersData);
+            } else {
+                localStorage.setItem('memeCoinTokenHolders', JSON.stringify(holdersData));
+            }
             console.log('Token holders data stored successfully');
         } catch (error) {
             console.error('Failed to store holders data:', error);
@@ -355,7 +360,12 @@ class TokenHoldersManager {
                 snapshots.shift();
             }
 
-            localStorage.setItem('memeCoinHoldersSnapshots', JSON.stringify(snapshots));
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinHoldersSnapshots', snapshots);
+            } else {
+                localStorage.setItem('memeCoinHoldersSnapshots', JSON.stringify(snapshots));
+            }
             
             console.log('Reward end holders snapshot created:', snapshot.snapshotId);
             console.log('Snapshot data:', snapshot);
