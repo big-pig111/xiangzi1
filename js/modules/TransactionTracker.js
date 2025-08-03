@@ -36,6 +36,43 @@ class TransactionTracker {
         }
     }
 
+    loadLastSignature() {
+        try {
+            const lastSigData = localStorage.getItem('memeCoinLastSignature');
+            if (lastSigData) {
+                const data = JSON.parse(lastSigData);
+                // Only use the signature if it's for the same token address
+                if (data.tokenAddress === this.tokenAddress) {
+                    this.lastSignature = data.signature;
+                    console.log('Loaded last signature:', this.lastSignature);
+                } else {
+                    console.log('Token address changed, resetting last signature');
+                    this.lastSignature = null;
+                }
+            } else {
+                console.log('No last signature found, starting fresh');
+                this.lastSignature = null;
+            }
+        } catch (error) {
+            console.error('Failed to load last signature:', error);
+            this.lastSignature = null;
+        }
+    }
+
+    saveLastSignature() {
+        try {
+            const data = {
+                signature: this.lastSignature,
+                tokenAddress: this.tokenAddress,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('memeCoinLastSignature', JSON.stringify(data));
+            console.log('Saved last signature:', this.lastSignature);
+        } catch (error) {
+            console.error('Failed to save last signature:', error);
+        }
+    }
+
     setupEventListeners() {
         // Check for detection control every 10 seconds
         setInterval(() => {
@@ -71,7 +108,9 @@ class TransactionTracker {
         try {
             this.tokenAddress = tokenAddress;
             this.isTracking = true;
-            this.lastSignature = null;
+            
+            // Load the last processed signature from localStorage
+            this.loadLastSignature();
             
             this.updateDetectionStatus('running', 'Detecting transactions...');
             this.updateCurrentTokenAddress(tokenAddress);
@@ -92,6 +131,10 @@ class TransactionTracker {
         if (this.pollInterval) {
             clearInterval(this.pollInterval);
             this.pollInterval = null;
+        }
+        // Save the last signature before stopping
+        if (this.lastSignature) {
+            this.saveLastSignature();
         }
         this.updateDetectionStatus('stopped', 'Detection stopped');
     }
@@ -124,14 +167,15 @@ class TransactionTracker {
                     break; // Already processed
                 }
 
-                if (!this.lastSignature) {
-                    this.lastSignature = sig.signature;
-                    continue; // Skip first run
-                }
-
                 // Process transaction immediately
                 await this.processTransaction(sig.signature, sig.blockTime);
                 newTransactionsFound = true;
+            }
+
+            // Update the last signature to the most recent one
+            if (signatures.length > 0) {
+                this.lastSignature = signatures[0].signature;
+                this.saveLastSignature();
             }
 
             // Update UI immediately if new transactions were found
