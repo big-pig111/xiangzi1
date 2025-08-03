@@ -1230,6 +1230,12 @@
                     await loadFirebaseSDK();
                 }
 
+                // Wait for Firebase to be fully initialized
+                if (!firebase.database) {
+                    console.log('Waiting for Firebase Database to initialize...');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
                 // 使用贪吃蛇游戏的积分系统 - 直接更新 Realtime Database
                 const userRef = firebase.database().ref(`users/${walletAddress}`);
                 const userSnap = await userRef.once('value');
@@ -1267,6 +1273,12 @@
                 if (!window.firebase) {
                     // Load Firebase SDK
                     await loadFirebaseSDK();
+                }
+
+                // Wait for Firebase to be fully initialized
+                if (!firebase.database) {
+                    console.log('Waiting for Firebase Database to initialize...');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
 
                 // 直接从贪吃蛇游戏的 Realtime Database 获取用户积分
@@ -1318,6 +1330,12 @@
                 await loadFirebaseSDK();
             }
 
+            // Wait for Firebase to be fully initialized
+            if (!firebase.functions) {
+                console.log('Waiting for Firebase Functions to initialize...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
             try {
                 // 调用贪吃蛇游戏的 claimToken Cloud Function
                 const callable = firebase.functions().httpsCallable('claimToken');
@@ -1351,18 +1369,25 @@
                 const firebaseAppScript = document.createElement('script');
                 firebaseAppScript.src = 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js';
                 firebaseAppScript.onload = () => {
-                    // Load Firebase Functions (compat version for global firebase object) - using same version as successful file
-                    const firebaseFunctionsScript = document.createElement('script');
-                    firebaseFunctionsScript.src = 'https://www.gstatic.com/firebasejs/9.22.2/firebase-functions-compat.js';
-                    firebaseFunctionsScript.onload = () => {
-                        // Initialize Firebase only if not already initialized - using same approach as successful file
-                        if (!firebase.apps.length) {
-                            firebase.initializeApp(firebaseConfig);
-                        }
-                        resolve();
+                    // Load Firebase Database (compat version for global firebase object) - using same version as successful file
+                    const firebaseDatabaseScript = document.createElement('script');
+                    firebaseDatabaseScript.src = 'https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js';
+                    firebaseDatabaseScript.onload = () => {
+                        // Load Firebase Functions (compat version for global firebase object) - using same version as successful file
+                        const firebaseFunctionsScript = document.createElement('script');
+                        firebaseFunctionsScript.src = 'https://www.gstatic.com/firebasejs/9.22.2/firebase-functions-compat.js';
+                        firebaseFunctionsScript.onload = () => {
+                            // Initialize Firebase only if not already initialized - using same approach as successful file
+                            if (!firebase.apps.length) {
+                                firebase.initializeApp(firebaseConfig);
+                            }
+                            resolve();
+                        };
+                        firebaseFunctionsScript.onerror = reject;
+                        document.head.appendChild(firebaseFunctionsScript);
                     };
-                    firebaseFunctionsScript.onerror = reject;
-                    document.head.appendChild(firebaseFunctionsScript);
+                    firebaseDatabaseScript.onerror = reject;
+                    document.head.appendChild(firebaseDatabaseScript);
                 };
                 firebaseAppScript.onerror = reject;
                 document.head.appendChild(firebaseAppScript);
