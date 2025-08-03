@@ -205,10 +205,13 @@ class TransactionTracker {
                 return;
             }
 
+            // Use blockTime for accurate transaction timing
+            const transactionTimestamp = blockTime ? new Date(blockTime * 1000).toISOString() : new Date().toISOString();
+
             const transactionData = {
                 signature: signature,
                 blockTime: blockTime,
-                timestamp: new Date().toISOString(),
+                timestamp: transactionTimestamp,
                 type: this.determineTransactionType(tx),
                 amount: this.extractTokenAmount(tx),
                 trader: this.extractTraderAddress(tx),
@@ -226,7 +229,9 @@ class TransactionTracker {
                 tokenAmount: tokenAmount,
                 isNaN: isNaN(tokenAmount),
                 isLarge: !isNaN(tokenAmount) && tokenAmount > 1000000,
-                trader: transactionData.trader
+                trader: transactionData.trader,
+                timestamp: transactionData.timestamp,
+                blockTime: blockTime
             });
             
             if (!isNaN(tokenAmount) && tokenAmount > 1000000) {
@@ -291,10 +296,10 @@ class TransactionTracker {
 
     handleLargeTransaction(transactionData) {
         try {
-            // Create notification data
+            // Create notification data with transaction's actual timestamp
             const notificationData = {
                 type: 'large_transaction',
-                timestamp: new Date().toISOString(),
+                timestamp: transactionData.timestamp, // Use transaction's actual timestamp
                 transaction: transactionData,
                 message: `🚨 LARGE TRANSACTION DETECTED! ${transactionData.type.toUpperCase()} of ${transactionData.amount} tokens by ${transactionData.trader}`
             };
