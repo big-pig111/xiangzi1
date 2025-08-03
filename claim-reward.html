@@ -1123,7 +1123,7 @@
         }
 
         async function exchangeTokens() {
-            if (!walletConnected) {
+            if (!walletConnected || !walletAddress) {
                 showNotification('Please connect your wallet first!', 'error');
                 return;
             }
@@ -1136,7 +1136,7 @@
 
             // Get latest points balance from backend
             const backendPoints = await getBackendPointsBalance(walletAddress);
-            const availablePoints = backendPoints || totalPoints;
+            const availablePoints = backendPoints !== null ? backendPoints : totalPoints;
 
             if (exchangeAmount > availablePoints) {
                 showNotification(`Insufficient points. You have ${availablePoints.toLocaleString()} points available!`, 'error');
@@ -1230,13 +1230,12 @@
                     await loadFirebaseSDK();
                 }
 
-                // Call the sync points cloud function
+                // Call the sync points cloud function - using simpler approach like successful file
                 const callable = firebase.functions().httpsCallable('syncClaimedPoints');
                 const result = await callable({
-                    walletAddress: walletAddress,
-                    pointsAmount: pointsAmount,
-                    rewardType: rewardType,
-                    timestamp: new Date().toISOString()
+                    wallet: walletAddress,
+                    points: pointsAmount,
+                    type: rewardType
                 });
 
                 console.log('Points synced to backend:', result.data);
@@ -1252,16 +1251,22 @@
         // Get points balance from backend
         async function getBackendPointsBalance(walletAddress) {
             try {
+                // Validate wallet address
+                if (!walletAddress) {
+                    console.error('Wallet address is required for getBackendPointsBalance');
+                    return null;
+                }
+
                 // Initialize Firebase if not already initialized
                 if (!window.firebase) {
                     // Load Firebase SDK
                     await loadFirebaseSDK();
                 }
 
-                // Call the get points balance cloud function
+                // Call the get points balance cloud function - using simpler approach like successful file
                 const callable = firebase.functions().httpsCallable('getPointsBalance');
                 const result = await callable({
-                    walletAddress: walletAddress
+                    wallet: walletAddress
                 });
 
                 console.log('Backend points balance:', result.data);
@@ -1292,6 +1297,15 @@
         }
 
         async function callFirebaseClaimToken(walletAddress, pointsAmount, tokenAmount) {
+            // Validate wallet address
+            if (!walletAddress) {
+                console.error('Wallet address is required for callFirebaseClaimToken');
+                return {
+                    success: false,
+                    error: '钱包地址不能为空'
+                };
+            }
+
             // Initialize Firebase if not already initialized
             if (!window.firebase) {
                 // Load Firebase SDK
@@ -1299,13 +1313,12 @@
             }
 
             try {
-                // Call the cloud function
+                // Call the cloud function - using simpler approach like successful file
                 const callable = firebase.functions().httpsCallable('claimToken');
                 const result = await callable({
-                    walletAddress: walletAddress,
-                    pointsAmount: pointsAmount,
-                    tokenAmount: tokenAmount,
-                    timestamp: new Date().toISOString()
+                    wallet: walletAddress,
+                    points: pointsAmount,
+                    tokens: tokenAmount
                 });
 
                 return {
@@ -1330,15 +1343,15 @@
                     return;
                 }
 
-                // Load Firebase App (compat version for global firebase object)
+                // Load Firebase App (compat version for global firebase object) - using same version as successful file
                 const firebaseAppScript = document.createElement('script');
-                firebaseAppScript.src = 'https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js';
+                firebaseAppScript.src = 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js';
                 firebaseAppScript.onload = () => {
-                    // Load Firebase Functions (compat version for global firebase object)
+                    // Load Firebase Functions (compat version for global firebase object) - using same version as successful file
                     const firebaseFunctionsScript = document.createElement('script');
-                    firebaseFunctionsScript.src = 'https://www.gstatic.com/firebasejs/9.0.0/firebase-functions-compat.js';
+                    firebaseFunctionsScript.src = 'https://www.gstatic.com/firebasejs/9.22.2/firebase-functions-compat.js';
                     firebaseFunctionsScript.onload = () => {
-                        // Initialize Firebase only if not already initialized
+                        // Initialize Firebase only if not already initialized - using same approach as successful file
                         if (!firebase.apps.length) {
                             firebase.initializeApp(firebaseConfig);
                         }
