@@ -670,38 +670,45 @@ class ConfigManager {
             const countdownData = {
                 targetDate: newTargetDate.toISOString(),
                 lastUpdate: new Date().toISOString(),
-                resetBy: 'admin-panel-local',
+                resetBy: 'admin-panel',
                 version: '2.0'
             };
             
-            // Prioritize Firebase, fallback to localStorage
-            if (typeof firebase !== 'undefined' && firebase.database) {
-                try {
-                    const countdownRef = firebase.database().ref('countdown');
-                    await countdownRef.set(countdownData);
-                    console.log('Countdown data saved to Firebase');
-                    this.log(`Countdown reset to ${minutes} minutes (Firebase sync)`, 'success');
-                } catch (firebaseError) {
-                    console.error('Failed to save to Firebase:', firebaseError);
-                    this.log('Firebase save failed, using localStorage', 'warning');
-                    
-                    // Fallback to localStorage
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinCountdown', countdownData);
+                this.log(`Countdown reset to ${minutes} minutes with Firebase sync`, 'success');
+            } else {
+                // Fallback to direct Firebase or localStorage
+                if (typeof firebase !== 'undefined' && firebase.database) {
+                    try {
+                        const countdownRef = firebase.database().ref('countdown');
+                        await countdownRef.set(countdownData);
+                        console.log('Countdown data saved to Firebase');
+                        this.log(`Countdown reset to ${minutes} minutes (Firebase sync)`, 'success');
+                    } catch (firebaseError) {
+                        console.error('Failed to save to Firebase:', firebaseError);
+                        this.log('Firebase save failed, using localStorage', 'warning');
+                        
+                        // Fallback to localStorage
+                        try {
+                            localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+                            console.log('Countdown data saved to localStorage');
+                        } catch (storageError) {
+                            console.error('Failed to save to localStorage:', storageError);
+                            this.log('Warning: Unable to save to localStorage, but countdown will still reset', 'warning');
+                        }
+                    }
+                } else {
+                    // Use localStorage directly
                     try {
                         localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
                         console.log('Countdown data saved to localStorage');
+                        this.log(`Countdown reset to ${minutes} minutes (localStorage only)`, 'success');
                     } catch (storageError) {
                         console.error('Failed to save to localStorage:', storageError);
                         this.log('Warning: Unable to save to localStorage, but countdown will still reset', 'warning');
                     }
-                }
-            } else {
-                // Use localStorage directly
-                try {
-                    localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
-                    console.log('Countdown data saved to localStorage');
-                } catch (storageError) {
-                    console.error('Failed to save to localStorage:', storageError);
-                    this.log('Warning: Unable to save to localStorage, but countdown will still reset', 'warning');
                 }
             }
             
@@ -763,18 +770,24 @@ class ConfigManager {
                         version: '2.0'
                     };
                     
-                    // Prioritize Firebase, fallback to localStorage
-                    if (typeof firebase !== 'undefined' && firebase.database) {
-                        try {
-                            const countdownRef = firebase.database().ref('countdown');
-                            await countdownRef.set(countdownData);
-                            console.log('Countdown config updated via Firebase');
-                        } catch (firebaseError) {
-                            console.error('Failed to update via Firebase:', firebaseError);
+                    // Use BackendManager for sync if available
+                    if (window.backendManager) {
+                        window.backendManager.setLocalStorageWithSync('memeCoinCountdown', countdownData);
+                        console.log('Countdown config updated via BackendManager');
+                    } else {
+                        // Fallback to direct Firebase or localStorage
+                        if (typeof firebase !== 'undefined' && firebase.database) {
+                            try {
+                                const countdownRef = firebase.database().ref('countdown');
+                                await countdownRef.set(countdownData);
+                                console.log('Countdown config updated via Firebase');
+                            } catch (firebaseError) {
+                                console.error('Failed to update via Firebase:', firebaseError);
+                                localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+                            }
+                        } else {
                             localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
                         }
-                    } else {
-                        localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
                     }
                 }
             } catch (error) {
@@ -795,24 +808,30 @@ class ConfigManager {
         }
 
         this.showModal('Confirm Reset', `Are you sure you want to reset the holding countdown to ${minutes} minutes?`, () => {
-            // Update backend configuration
-                    // Set global holding countdown storage (primary method)
-        const now = new Date();
-        const targetDate = new Date(now.getTime() + (minutes * 60) * 1000);
-        
-        const rewardCountdownData = {
-            targetDate: targetDate.toISOString(),
-            lastUpdate: new Date().toISOString()
-        };
-        localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(rewardCountdownData));
-        
-        // Also update backend configuration (backup)
-        this.config.rewardCountdown.minutes = minutes;
-        this.config.rewardCountdown.seconds = 0;
-        this.config.rewardCountdown.lastUpdate = new Date().toISOString();
-            this.saveConfig();
+            // Set global holding countdown storage with Firebase sync
+            const now = new Date();
+            const targetDate = new Date(now.getTime() + (minutes * 60) * 1000);
             
-            this.log(`Holding countdown reset to ${minutes} minutes`, 'success');
+            const rewardCountdownData = {
+                targetDate: targetDate.toISOString(),
+                lastUpdate: new Date().toISOString(),
+                resetBy: 'admin-panel'
+            };
+            
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinRewardCountdown', rewardCountdownData);
+                this.log(`Holding countdown reset to ${minutes} minutes with Firebase sync`, 'success');
+            } else {
+                localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(rewardCountdownData));
+                this.log(`Holding countdown reset to ${minutes} minutes (localStorage only)`, 'success');
+            }
+            
+            // Also update backend configuration (backup)
+            this.config.rewardCountdown.minutes = minutes;
+            this.config.rewardCountdown.seconds = 0;
+            this.config.rewardCountdown.lastUpdate = new Date().toISOString();
+            this.saveConfig();
         });
     }
 
@@ -831,23 +850,30 @@ class ConfigManager {
             return;
         }
 
-        // Set global holding countdown storage (primary method)
+        // Set global holding countdown storage with Firebase sync
         const now = new Date();
         const targetDate = new Date(now.getTime() + (minutes * 60 + seconds) * 1000);
         
         const rewardCountdownData = {
             targetDate: targetDate.toISOString(),
-            lastUpdate: new Date().toISOString()
+            lastUpdate: new Date().toISOString(),
+            resetBy: 'admin-panel'
         };
-        localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(rewardCountdownData));
+        
+        // Use BackendManager for sync if available
+        if (window.backendManager) {
+            window.backendManager.setLocalStorageWithSync('memeCoinRewardCountdown', rewardCountdownData);
+            this.log('Holding countdown configuration saved with Firebase sync', 'success');
+        } else {
+            localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(rewardCountdownData));
+            this.log('Holding countdown configuration saved (localStorage only)', 'success');
+        }
         
         // Also update backend configuration (backup)
         this.config.rewardCountdown.minutes = minutes;
         this.config.rewardCountdown.seconds = seconds;
         this.config.rewardCountdown.lastUpdate = new Date().toISOString();
         this.saveConfig();
-        
-        this.log('Holding countdown configuration saved', 'success');
     }
 
     // Save all configurations
