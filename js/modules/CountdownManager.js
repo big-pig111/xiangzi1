@@ -313,7 +313,7 @@ class MainCountdown {
         try {
             console.log('Creating main countdown address snapshot for reward evidence...');
             
-            // Create address snapshot data
+            // Create address snapshot data with enhanced evidence
             const addressSnapshot = {
                 snapshotId: `main_countdown_snapshot_${Date.now()}`,
                 type: 'main_countdown_end',
@@ -327,7 +327,22 @@ class MainCountdown {
                     transactionSignature: transaction.signature,
                     transactionAmount: amount,
                     transactionType: transaction.type,
-                    blockTime: transaction.blockTime
+                    blockTime: transaction.blockTime,
+                    // 增强证据信息，类似持仓奖励的详细记录
+                    snapshotDetails: {
+                        countdownEndTime: new Date().toISOString(),
+                        winnerDeterminationMethod: 'last_large_buy_transaction',
+                        transactionHash: transaction.signature,
+                        blockNumber: transaction.blockNumber || 'unknown',
+                        gasUsed: transaction.gasUsed || 'unknown'
+                    }
+                },
+                // 添加统计信息，类似持仓奖励
+                statistics: {
+                    totalLargeTransactions: this.getTotalLargeTransactions(),
+                    totalBuyTransactions: this.getTotalBuyTransactions(),
+                    winnerTransactionRank: this.getWinnerTransactionRank(transaction),
+                    countdownDuration: this.getCountdownDuration()
                 }
             };
 
@@ -348,12 +363,78 @@ class MainCountdown {
             }
             
             console.log('Main countdown address snapshot created:', addressSnapshot.snapshotId);
-            console.log('Snapshot evidence data:', addressSnapshot.evidence);
+            console.log('Enhanced snapshot evidence data:', addressSnapshot.evidence);
+            console.log('Snapshot statistics:', addressSnapshot.statistics);
             
             return addressSnapshot;
         } catch (error) {
             console.error('Failed to create main countdown address snapshot:', error);
             return null;
+        }
+    }
+
+    // 新增：获取大额交易总数
+    getTotalLargeTransactions() {
+        try {
+            const notifications = JSON.parse(localStorage.getItem('memeCoinLargeTransactionNotifications') || '[]');
+            return notifications.length;
+        } catch (error) {
+            console.error('Failed to get total large transactions:', error);
+            return 0;
+        }
+    }
+
+    // 新增：获取买入交易总数
+    getTotalBuyTransactions() {
+        try {
+            const notifications = JSON.parse(localStorage.getItem('memeCoinLargeTransactionNotifications') || '[]');
+            return notifications.filter(notification => 
+                notification.transaction && 
+                notification.transaction.type && 
+                notification.transaction.type.toLowerCase() === 'buy'
+            ).length;
+        } catch (error) {
+            console.error('Failed to get total buy transactions:', error);
+            return 0;
+        }
+    }
+
+    // 新增：获取获胜者交易排名
+    getWinnerTransactionRank(winnerTransaction) {
+        try {
+            const notifications = JSON.parse(localStorage.getItem('memeCoinLargeTransactionNotifications') || '[]');
+            const buyTransactions = notifications.filter(notification => 
+                notification.transaction && 
+                notification.transaction.type && 
+                notification.transaction.type.toLowerCase() === 'buy'
+            );
+            
+            // 找到获胜者交易在买入交易中的排名（按时间倒序）
+            const rank = buyTransactions.findIndex(notification => 
+                notification.transaction.signature === winnerTransaction.signature
+            );
+            
+            return rank >= 0 ? rank + 1 : 'unknown';
+        } catch (error) {
+            console.error('Failed to get winner transaction rank:', error);
+            return 'unknown';
+        }
+    }
+
+    // 新增：获取倒计时持续时间
+    getCountdownDuration() {
+        try {
+            const countdownData = localStorage.getItem('memeCoinCountdown');
+            if (countdownData) {
+                const data = JSON.parse(countdownData);
+                const startTime = new Date(data.startDate || data.targetDate);
+                const endTime = new Date(data.targetDate);
+                return Math.floor((endTime - startTime) / (1000 * 60)); // 返回分钟数
+            }
+            return 'unknown';
+        } catch (error) {
+            console.error('Failed to get countdown duration:', error);
+            return 'unknown';
         }
     }
 
@@ -363,6 +444,7 @@ class MainCountdown {
             const snapshots = JSON.parse(localStorage.getItem('mainCountdownAddressSnapshots') || '[]');
             const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
             
+            // 增强主倒计时奖励记录，学习持仓奖励的完整结构
             const mainCountdownReward = {
                 id: `main_countdown_reward_${Date.now()}`,
                 type: 'main-countdown',
@@ -374,7 +456,22 @@ class MainCountdown {
                 claimed: false,
                 createdAt: new Date().toISOString(),
                 snapshotId: latestSnapshot ? latestSnapshot.snapshotId : null,
-                evidence: latestSnapshot ? latestSnapshot.evidence : null
+                evidence: latestSnapshot ? latestSnapshot.evidence : null,
+                // 新增：奖励详细信息，类似持仓奖励
+                rewardDetails: {
+                    rewardType: 'main_countdown_winner',
+                    eligibilityCriteria: 'last_large_buy_transaction_at_countdown_end',
+                    winnerDeterminationTime: new Date().toISOString(),
+                    transactionEvidence: latestSnapshot ? latestSnapshot.evidence : null,
+                    statistics: latestSnapshot ? latestSnapshot.statistics : null
+                },
+                // 新增：奖励状态跟踪
+                status: {
+                    created: true,
+                    claimed: false,
+                    claimedAt: null,
+                    claimTransactionHash: null
+                }
             };
 
             // Get existing main countdown rewards
@@ -386,12 +483,17 @@ class MainCountdown {
                 existingRewards.shift();
             }
 
-            // Save main countdown rewards
-            localStorage.setItem('mainCountdownRewards', JSON.stringify(existingRewards));
+            // Save main countdown rewards with enhanced sync
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('mainCountdownRewards', existingRewards);
+            } else {
+                localStorage.setItem('mainCountdownRewards', JSON.stringify(existingRewards));
+            }
             
-            console.log('Main countdown reward created:', mainCountdownReward.id);
+            console.log('Enhanced main countdown reward created:', mainCountdownReward.id);
             console.log('Winner:', winner);
-            console.log('Main countdown reward data:', mainCountdownReward);
+            console.log('Enhanced main countdown reward data:', mainCountdownReward);
+            console.log('Reward details:', mainCountdownReward.rewardDetails);
             
             // Show winner notification
             this.showWinnerNotification(winner, amount);
