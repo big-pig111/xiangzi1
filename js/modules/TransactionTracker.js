@@ -1,257 +1,359 @@
 /**
- * Transaction Tracker Module
- * Handles Solana transaction monitoring and management
+ * Backend Manager Module
+ * Handles communication with backend system and configuration management
  */
 
-class TransactionTracker {
+class BackendManager {
     constructor() {
-        this.connection = null;
-        this.isTracking = false;
-        this.tokenAddress = '';
-        this.rpcUrl = '';
-        this.pollInterval = null;
-        this.transactions = [];
-        this.maxTransactions = 100;
-        this.lastSignature = null;
+        this.config = null;
+        this.syncInterval = null;
+        this.firebaseEnabled = false;
+        this.firebaseRefs = {};
         this.init();
     }
 
     init() {
         this.loadConfig();
-        this.setupEventListeners();
-        this.checkDetectionControl();
-        this.updateSuccessAddressesList(); // Initialize success addresses list
+        this.initFirebase();
+        this.startSync();
     }
 
+    // Configuration Management
     loadConfig() {
         try {
             const adminConfig = localStorage.getItem('memeCoinAdminConfig');
+            this.config = adminConfig ? JSON.parse(adminConfig) : this.getDefaultConfig();
+        } catch (error) {
+            console.error('Failed to load backend config:', error);
+            this.config = this.getDefaultConfig();
+        }
+    }
+
+    getDefaultConfig() {
+        return {
+            rpc: {
+                url: '',
+                connected: false,
+                lastTest: null
+            },
+            token: {
+                address: '',
+                name: '',
+                validated: false
+            },
+            countdown: {
+                minutes: 5,
+                seconds: 0,
+                message: 'TO THE MOON!!! 🚀',
+                lastUpdate: new Date().toISOString()
+            },
+            rewardCountdown: {
+                minutes: 20,
+                seconds: 0,
+                lastUpdate: new Date().toISOString()
+            },
+            detection: {
+                isRunning: false,
+                startTime: null,
+                lastUpdate: null
+            },
+            system: {
+                lastUpdate: new Date().toISOString(),
+                uptime: new Date().toISOString()
+            }
+        };
+    }
+
+    initFirebase() {
+        try {
+            // Check if Firebase is available
+            if (typeof firebase !== 'undefined' && firebase.database) {
+                this.firebaseEnabled = true;
+                this.firebaseRefs = {
+                    adminConfig: firebase.database().ref('adminConfig'),
+                    detection: firebase.database().ref('detection'),
+                    countdown: firebase.database().ref('countdown'),
+                    transactions: firebase.database().ref('transactions')
+                };
+                
+                // Set up real-time listeners
+                this.setupFirebaseListeners();
+                console.log('Firebase real-time sync enabled');
+            } else {
+                console.log('Firebase not available, using localStorage only');
+            }
+        } catch (error) {
+            console.error('Failed to initialize Firebase:', error);
+            this.firebaseEnabled = false;
+        }
+    }
+
+    setupFirebaseListeners() {
+        if (!this.firebaseEnabled) return;
+
+        // Listen for admin config changes
+        this.firebaseRefs.adminConfig.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && data !== this.config) {
+                console.log('Admin config updated from Firebase');
+                this.config = { ...this.getDefaultConfig(), ...data };
+                this.saveConfig(); // Save to localStorage
+                this.onConfigChanged();
+            }
+        });
+
+        // Listen for detection control changes
+        this.firebaseRefs.detection.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Detection control updated from Firebase');
+                localStorage.setItem('memeCoinDetection', JSON.stringify(data));
+                this.onDetectionChanged(data);
+            }
+        });
+
+        // Listen for countdown changes
+        this.firebaseRefs.countdown.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Countdown updated from Firebase');
+                localStorage.setItem('memeCoinCountdown', JSON.stringify(data));
+                this.onCountdownChanged(data);
+            }
+        });
+    }
+
+    onConfigChanged() {
+        // Trigger UI updates or other actions when config changes
+        const event = new CustomEvent('adminConfigChanged', { detail: this.config });
+        document.dispatchEvent(event);
+    }
+
+    onDetectionChanged(detectionData) {
+        // Trigger detection control updates
+        const event = new CustomEvent('detectionControlChanged', { detail: detectionData });
+        document.dispatchEvent(event);
+    }
+
+    onCountdownChanged(countdownData) {
+        // Trigger countdown updates
+        const event = new CustomEvent('countdownChanged', { detail: countdownData });
+        document.dispatchEvent(event);
+    }
+
+    getConfig() {
+        return this.config;
+    }
+
+    saveConfig() {
+        try {
+            this.config.system.lastUpdate = new Date().toISOString();
+            
+            // Save to localStorage
+            localStorage.setItem('memeCoinAdminConfig', JSON.stringify(this.config));
+            
+            // Save to Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.adminConfig.set(this.config);
+                console.log('Config saved to Firebase');
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Failed to save backend config:', error);
+            return false;
+        }
+    }
+
+    // Synchronization
+    startSync() {
+        this.syncInterval = setInterval(() => {
+            this.syncWithBackend();
+        }, 5000); // Sync every 5 seconds
+    }
+
+    syncWithBackend() {
+        try {
+            const adminConfig = localStorage.getItem('memeCoinAdminConfig');
             if (adminConfig) {
-                const config = JSON.parse(adminConfig);
-                this.rpcUrl = config.rpc?.url || '';
-                this.tokenAddress = config.token?.address || '';
+                const backendConfig = JSON.parse(adminConfig);
+                
+                // Update local config with backend changes
+                this.updateConfigFromBackend(backendConfig);
+                
+                // Save any local changes back to backend
+                this.saveConfig();
             }
         } catch (error) {
-            console.error('Failed to load transaction tracker config:', error);
+            console.error('Failed to sync with backend:', error);
         }
     }
 
-    loadLastSignature() {
-        try {
-            const lastSigData = localStorage.getItem('memeCoinLastSignature');
-            if (lastSigData) {
-                const data = JSON.parse(lastSigData);
-                // Only use the signature if it's for the same token address
-                if (data.tokenAddress === this.tokenAddress) {
-                    this.lastSignature = data.signature;
-                    console.log('Loaded last signature:', this.lastSignature);
-                } else {
-                    console.log('Token address changed, resetting last signature');
-                    this.lastSignature = null;
-                }
-            } else {
-                console.log('No last signature found, starting fresh');
-                this.lastSignature = null;
-            }
-        } catch (error) {
-            console.error('Failed to load last signature:', error);
-            this.lastSignature = null;
+    updateConfigFromBackend(backendConfig) {
+        // Update RPC configuration
+        if (backendConfig.rpc) {
+            this.config.rpc = { ...this.config.rpc, ...backendConfig.rpc };
+        }
+
+        // Update token configuration
+        if (backendConfig.token) {
+            this.config.token = { ...this.config.token, ...backendConfig.token };
+        }
+
+        // Update countdown configuration
+        if (backendConfig.countdown) {
+            this.config.countdown = { ...this.config.countdown, ...backendConfig.countdown };
+        }
+
+        // Update reward countdown configuration
+        if (backendConfig.rewardCountdown) {
+            this.config.rewardCountdown = { ...this.config.rewardCountdown, ...backendConfig.rewardCountdown };
+        }
+
+        // Update detection configuration
+        if (backendConfig.detection) {
+            this.config.detection = { ...this.config.detection, ...backendConfig.detection };
         }
     }
 
-    saveLastSignature() {
+    // RPC Management
+    updateRPCConfig(url, connected = false) {
+        this.config.rpc.url = url;
+        this.config.rpc.connected = connected;
+        this.config.rpc.lastTest = new Date().toISOString();
+        this.saveConfig();
+    }
+
+    getRPCConfig() {
+        return this.config.rpc;
+    }
+
+    // Token Management
+    updateTokenConfig(address, name, validated = false) {
+        this.config.token.address = address;
+        this.config.token.name = name;
+        this.config.token.validated = validated;
+        this.saveConfig();
+    }
+
+    getTokenConfig() {
+        return this.config.token;
+    }
+
+    // Countdown Management
+    updateCountdownConfig(minutes, seconds = 0, message = null) {
+        this.config.countdown.minutes = minutes;
+        this.config.countdown.seconds = seconds;
+        if (message) {
+            this.config.countdown.message = message;
+        }
+        this.config.countdown.lastUpdate = new Date().toISOString();
+        this.saveConfig();
+    }
+
+    getCountdownConfig() {
+        return this.config.countdown;
+    }
+
+    // Reward Countdown Management
+    updateRewardCountdownConfig(minutes, seconds = 0) {
+        this.config.rewardCountdown.minutes = minutes;
+        this.config.rewardCountdown.seconds = seconds;
+        this.config.rewardCountdown.lastUpdate = new Date().toISOString();
+        this.saveConfig();
+    }
+
+    getRewardCountdownConfig() {
+        return this.config.rewardCountdown;
+    }
+
+    // Detection Management
+    updateDetectionConfig(isRunning, rpcUrl = null, tokenAddress = null) {
+        this.config.detection.isRunning = isRunning;
+        if (isRunning) {
+            this.config.detection.startTime = new Date().toISOString();
+        } else {
+            this.config.detection.startTime = null;
+        }
+        this.config.detection.lastUpdate = new Date().toISOString();
+        this.saveConfig();
+
+        // Also update detection control
+        if (isRunning && rpcUrl && tokenAddress) {
+            this.setDetectionControl(isRunning, rpcUrl, tokenAddress);
+        } else if (!isRunning) {
+            this.clearDetectionControl();
+        }
+    }
+
+    getDetectionConfig() {
+        return this.config.detection;
+    }
+
+    // Detection Control
+    setDetectionControl(isRunning, rpcUrl, tokenAddress) {
         try {
-            const data = {
-                signature: this.lastSignature,
-                tokenAddress: this.tokenAddress,
-                timestamp: new Date().toISOString()
+            const detectionConfig = {
+                isRunning: isRunning,
+                rpcUrl: rpcUrl,
+                tokenAddress: tokenAddress,
+                startTime: new Date().toISOString(),
+                lastUpdate: new Date().toISOString()
             };
-            localStorage.setItem('memeCoinLastSignature', JSON.stringify(data));
-            console.log('Saved last signature:', this.lastSignature);
+            
+            // Save to localStorage
+            localStorage.setItem('memeCoinDetection', JSON.stringify(detectionConfig));
+            
+            // Save to Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.detection.set(detectionConfig);
+                console.log('Detection control saved to Firebase');
+            }
         } catch (error) {
-            console.error('Failed to save last signature:', error);
+            console.error('Failed to set detection control:', error);
         }
     }
 
-    setupEventListeners() {
-        // Check for detection control every 10 seconds
-        setInterval(() => {
-            this.checkDetectionControl();
-        }, 10000);
-    }
-
-    async connect(rpcUrl) {
+    clearDetectionControl() {
         try {
-            if (!window.solanaWeb3) {
-                console.error('Solana Web3.js not loaded');
-                return false;
-            }
-
-            this.connection = new window.solanaWeb3.Connection(rpcUrl, 'confirmed');
-            await this.connection.getVersion();
+            localStorage.removeItem('memeCoinDetection');
             
-            this.updateConnectionStatus('connected', 'Connected to Solana');
-            return true;
+            // Clear from Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.detection.remove();
+                console.log('Detection control cleared from Firebase');
+            }
         } catch (error) {
-            console.error('Failed to connect to Solana:', error);
-            this.updateConnectionStatus('error', 'Connection failed');
-            return false;
+            console.error('Failed to clear detection control:', error);
         }
     }
 
-    async startTracking(tokenAddress) {
-        if (!this.connection) {
-            console.error('Not connected to Solana');
-            return false;
-        }
-
+    getDetectionControl() {
         try {
-            this.tokenAddress = tokenAddress;
-            this.isTracking = true;
-            
-            // Load the last processed signature from localStorage
-            this.loadLastSignature();
-            
-            this.updateDetectionStatus('running', 'Detecting transactions...');
-            this.updateCurrentTokenAddress(tokenAddress);
-            
-            // Start polling for transactions
-            this.startPolling();
-            
-            return true;
+            const detectionConfig = localStorage.getItem('memeCoinDetection');
+            return detectionConfig ? JSON.parse(detectionConfig) : null;
         } catch (error) {
-            console.error('Failed to start tracking:', error);
-            this.updateDetectionStatus('error', 'Failed to start detection');
-            return false;
+            console.error('Failed to get detection control:', error);
+            return null;
         }
     }
 
-    stopTracking() {
-        this.isTracking = false;
-        if (this.pollInterval) {
-            clearInterval(this.pollInterval);
-            this.pollInterval = null;
-        }
-        // Save the last signature before stopping
-        if (this.lastSignature) {
-            this.saveLastSignature();
-        }
-        this.updateDetectionStatus('stopped', 'Detection stopped');
-    }
-
-    startPolling() {
-        if (this.pollInterval) {
-            clearInterval(this.pollInterval);
-        }
-
-        this.pollInterval = setInterval(async () => {
-            if (this.isTracking) {
-                await this.pollTransactions();
-            }
-        }, 1000); // Poll every 1 second for real-time updates
-    }
-
-    async pollTransactions() {
+    // Transaction Management
+    getBackendTransactions() {
         try {
-            if (!this.connection || !this.tokenAddress) return;
-
-            const signatures = await this.connection.getSignaturesForAddress(
-                new window.solanaWeb3.PublicKey(this.tokenAddress),
-                { limit: 20 } // Increased limit for better coverage
-            );
-
-            let newTransactionsFound = false;
-
-            for (const sig of signatures) {
-                if (this.lastSignature && sig.signature === this.lastSignature) {
-                    break; // Already processed
-                }
-
-                // Process transaction immediately
-                await this.processTransaction(sig.signature, sig.blockTime);
-                newTransactionsFound = true;
+            const backendData = localStorage.getItem('memeCoinBackendTransactions');
+            if (backendData) {
+                const data = JSON.parse(backendData);
+                return data.transactions || [];
             }
-
-            // Update the last signature to the most recent one
-            if (signatures.length > 0) {
-                this.lastSignature = signatures[0].signature;
-                this.saveLastSignature();
-            }
-
-            // Update UI immediately if new transactions were found
-            if (newTransactionsFound) {
-                this.updateTransactionStats();
-                this.updateTransactionList();
-                this.updateLastUpdate();
-            }
+            return [];
         } catch (error) {
-            console.error('Failed to poll transactions:', error);
+            console.error('Failed to get backend transactions:', error);
+            return [];
         }
     }
 
-    async processTransaction(signature, blockTime) {
-        try {
-            const tx = await this.connection.getTransaction(signature, {
-                maxSupportedTransactionVersion: 0
-            });
-
-            if (!tx || this.isTransactionDuplicate(signature)) {
-                return;
-            }
-
-            const transactionData = {
-                signature: signature,
-                blockTime: blockTime,
-                timestamp: new Date().toISOString(),
-                type: this.determineTransactionType(tx),
-                amount: this.extractTokenAmount(tx),
-                trader: this.extractTraderAddress(tx),
-                status: tx.meta?.err ? 'Failed' : 'Success'
-            };
-
-            // Store full address for copy functionality
-            transactionData.fullTraderAddress = this.extractFullTraderAddress(tx);
-            
-            // Check for large transaction (>1,000,000 tokens)
-            const tokenAmount = parseFloat(transactionData.amount);
-            console.log('Transaction processed:', {
-                type: transactionData.type,
-                amount: transactionData.amount,
-                tokenAmount: tokenAmount,
-                isNaN: isNaN(tokenAmount),
-                isLarge: !isNaN(tokenAmount) && tokenAmount > 1000000,
-                trader: transactionData.trader
-            });
-            
-            if (!isNaN(tokenAmount) && tokenAmount > 1000000) {
-                console.log('Large transaction detected! Amount:', tokenAmount);
-                this.handleLargeTransaction(transactionData);
-            } else {
-                console.log('Not a large transaction or amount parsing failed');
-            }
-            
-            this.addTransaction(transactionData);
-            this.uploadTransactionToBackend(transactionData);
-
-        } catch (error) {
-            console.error('Failed to process transaction:', error);
-        }
-    }
-
-    isTransactionDuplicate(signature) {
-        return this.transactions.some(tx => tx.signature === signature);
-    }
-
-    addTransaction(transactionData) {
-        this.transactions.unshift(transactionData);
-        
-        // Keep only the latest transactions
-        if (this.transactions.length > this.maxTransactions) {
-            this.transactions = this.transactions.slice(0, this.maxTransactions);
-        }
-    }
-
-    uploadTransactionToBackend(transactionData) {
+    addBackendTransaction(transactionData) {
         try {
             const backendData = localStorage.getItem('memeCoinBackendTransactions');
             let data = backendData ? JSON.parse(backendData) : { transactions: [] };
@@ -259,839 +361,201 @@ class TransactionTracker {
             // Check for duplicates
             const isDuplicate = data.transactions.some(tx => tx.signature === transactionData.signature);
             if (isDuplicate) {
-                return;
+                return false;
             }
 
             data.transactions.unshift(transactionData);
             
             // Keep only the latest 100 transactions
-            if (data.transactions.length > this.maxTransactions) {
-                data.transactions = data.transactions.slice(0, this.maxTransactions);
+            const maxTransactions = 100;
+            if (data.transactions.length > maxTransactions) {
+                data.transactions = data.transactions.slice(0, maxTransactions);
             }
 
             data.lastUpdate = new Date().toISOString();
             localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
-            
+            return true;
         } catch (error) {
-            console.error('Failed to upload transaction to backend:', error);
+            console.error('Failed to add backend transaction:', error);
+            return false;
         }
     }
 
-    handleLargeTransaction(transactionData) {
+    clearBackendTransactions() {
         try {
-            // Create notification data
-            const notificationData = {
-                type: 'large_transaction',
-                timestamp: new Date().toISOString(),
-                transaction: transactionData,
-                message: `🚨 LARGE TRANSACTION DETECTED! ${transactionData.type.toUpperCase()} of ${transactionData.amount} tokens by ${transactionData.trader}`
+            localStorage.removeItem('memeCoinBackendTransactions');
+            return true;
+        } catch (error) {
+            console.error('Failed to clear backend transactions:', error);
+            return false;
+        }
+    }
+
+    // System Status
+    updateSystemStatus() {
+        this.config.system.lastUpdate = new Date().toISOString();
+        this.saveConfig();
+    }
+
+    getSystemStatus() {
+        return {
+            ...this.config.system,
+            uptime: this.calculateUptime()
+        };
+    }
+
+    calculateUptime() {
+        try {
+            const startTime = new Date(this.config.system.uptime);
+            const now = new Date();
+            const diff = now - startTime;
+            
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            return { days, hours, minutes, seconds };
+        } catch (error) {
+            return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+        }
+    }
+
+    // Utility Methods
+    validateConfig() {
+        const errors = [];
+        
+        if (!this.config.rpc.url) {
+            errors.push('RPC URL is required');
+        }
+        
+        if (!this.config.token.address) {
+            errors.push('Token address is required');
+        }
+        
+        if (this.config.countdown.minutes < 1 || this.config.countdown.minutes > 1440) {
+            errors.push('Countdown minutes must be between 1 and 1440');
+        }
+        
+        if (this.config.rewardCountdown.minutes < 1 || this.config.rewardCountdown.minutes > 1440) {
+            errors.push('Reward countdown minutes must be between 1 and 1440');
+        }
+        
+        return errors;
+    }
+
+    exportConfig() {
+        try {
+            const exportData = {
+                ...this.config,
+                exportTime: new Date().toISOString(),
+                version: '1.0.0'
             };
-
-            // Store notification in localStorage for backend
-            const notifications = localStorage.getItem('memeCoinLargeTransactionNotifications');
-            let notificationList = notifications ? JSON.parse(notifications) : [];
-            notificationList.unshift(notificationData);
             
-            // Keep only the latest 50 notifications
-            if (notificationList.length > 50) {
-                notificationList = notificationList.slice(0, 50);
-            }
-            
-            localStorage.setItem('memeCoinLargeTransactionNotifications', JSON.stringify(notificationList));
-
-            // Add successful address to the list (only for BUY transactions)
-            console.log('Checking transaction type for success address:', {
-                type: transactionData.type,
-                typeLower: transactionData.type.toLowerCase(),
-                isBuy: transactionData.type.toLowerCase() === 'buy'
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+                type: 'application/json' 
             });
             
-            if (transactionData.type.toLowerCase() === 'buy') {
-                console.log('Adding successful address for BUY transaction:', transactionData.trader);
-                this.addSuccessfulAddress(transactionData.trader, transactionData.amount);
-            }
-
-            // Increase main countdown by 30 seconds
-            this.increaseMainCountdown(30);
-
-            // Show notification on frontend
-            this.showLargeTransactionNotification(notificationData);
-
-            console.log('Large transaction detected:', notificationData.message);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `meme-coin-config-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
             
+            return true;
         } catch (error) {
-            console.error('Failed to handle large transaction:', error);
+            console.error('Failed to export config:', error);
+            return false;
         }
     }
 
-    increaseMainCountdown(additionalSeconds) {
+    importConfig(configData) {
         try {
-            console.log('Attempting to increase main countdown by', additionalSeconds, 'seconds');
+            const importedConfig = typeof configData === 'string' ? 
+                JSON.parse(configData) : configData;
             
-            // Get current global countdown
-            const globalCountdown = localStorage.getItem('memeCoinCountdown');
-            console.log('Current global countdown:', globalCountdown);
-            
-            let targetDate;
-            
-            if (globalCountdown) {
-                try {
-                    const data = JSON.parse(globalCountdown);
-                    targetDate = new Date(data.targetDate);
-                    console.log('Parsed target date:', targetDate);
-                } catch (parseError) {
-                    console.error('Failed to parse global countdown:', parseError);
-                    targetDate = null;
-                }
+            // Validate imported config
+            if (!importedConfig.rpc || !importedConfig.token || !importedConfig.countdown) {
+                throw new Error('Invalid config format');
             }
             
-            // If no valid target date, create one from admin config
-            if (!targetDate || isNaN(targetDate.getTime())) {
-                console.log('No valid target date found, creating from admin config');
-                const adminConfig = localStorage.getItem('memeCoinAdminConfig');
-                if (adminConfig) {
-                    try {
-                        const config = JSON.parse(adminConfig);
-                        const now = new Date();
-                        const currentMinutes = config.countdown?.minutes || 5;
-                        const currentSeconds = config.countdown?.seconds || 0;
-                        targetDate = new Date(now.getTime() + (currentMinutes * 60 + currentSeconds) * 1000);
-                        console.log('Created target date from admin config:', targetDate);
-                    } catch (adminError) {
-                        console.error('Failed to parse admin config:', adminError);
-                        // Fallback: create a 5-minute countdown from now
-                        targetDate = new Date(Date.now() + 5 * 60 * 1000);
-                        console.log('Created fallback target date:', targetDate);
-                    }
-                } else {
-                    // Fallback: create a 5-minute countdown from now
-                    targetDate = new Date(Date.now() + 5 * 60 * 1000);
-                    console.log('Created fallback target date:', targetDate);
-                }
-            }
+            // Update local config
+            this.config = { ...this.getDefaultConfig(), ...importedConfig };
+            this.saveConfig();
             
-            // Calculate current remaining time
-            const now = new Date();
-            const currentRemainingTime = targetDate - now;
-            const currentRemainingMinutes = Math.floor(currentRemainingTime / (1000 * 60));
-            const currentRemainingSeconds = Math.floor((currentRemainingTime % (1000 * 60)) / 1000);
-            
-            console.log('Current remaining time:', currentRemainingMinutes, 'minutes', currentRemainingSeconds, 'seconds');
-            
-            // Check if adding seconds would exceed 10 minutes limit
-            const totalCurrentSeconds = currentRemainingMinutes * 60 + currentRemainingSeconds;
-            const maxAllowedSeconds = 10 * 60; // 10 minutes in seconds
-            
-            if (totalCurrentSeconds + additionalSeconds > maxAllowedSeconds) {
-                console.log(`Cannot increase countdown: would exceed 10-minute limit. Current: ${totalCurrentSeconds}s, trying to add: ${additionalSeconds}s, max: ${maxAllowedSeconds}s`);
-                
-                // Set to exactly 10 minutes if it would exceed
-                const newTargetDate = new Date(now.getTime() + maxAllowedSeconds * 1000);
-                console.log('Setting countdown to maximum 10 minutes:', newTargetDate);
-                
-                // Update global countdown
-                const updatedCountdownData = {
-                    targetDate: newTargetDate.toISOString(),
-                    lastUpdate: new Date().toISOString(),
-                    maxReached: true
-                };
-                
-                localStorage.setItem('memeCoinCountdown', JSON.stringify(updatedCountdownData));
-                console.log('Updated memeCoinCountdown to maximum:', updatedCountdownData);
-                
-                // Also update the admin config
-                const adminConfig = localStorage.getItem('memeCoinAdminConfig');
-                if (adminConfig) {
-                    try {
-                        const config = JSON.parse(adminConfig);
-                        config.countdown = {
-                            minutes: 10,
-                            seconds: 0,
-                            lastUpdate: new Date().toISOString(),
-                            maxReached: true
-                        };
-                        
-                        localStorage.setItem('memeCoinAdminConfig', JSON.stringify(config));
-                        console.log('Updated admin config countdown to maximum:', config.countdown);
-                    } catch (adminError) {
-                        console.error('Failed to update admin config:', adminError);
-                    }
-                }
-                
-                console.log('Main countdown set to maximum 10 minutes');
-                return;
-            }
-            
-            // Add additional seconds to the target date (within limit)
-            const newTargetDate = new Date(targetDate.getTime() + (additionalSeconds * 1000));
-            console.log('New target date after increase:', newTargetDate);
-            
-            // Update global countdown
-            const updatedCountdownData = {
-                targetDate: newTargetDate.toISOString(),
-                lastUpdate: new Date().toISOString()
-            };
-            
-            localStorage.setItem('memeCoinCountdown', JSON.stringify(updatedCountdownData));
-            console.log('Updated memeCoinCountdown:', updatedCountdownData);
-            
-            // Also update the admin config
-            const adminConfig = localStorage.getItem('memeCoinAdminConfig');
-            if (adminConfig) {
-                try {
-                    const config = JSON.parse(adminConfig);
-                    const remainingTime = newTargetDate - now;
-                    const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
-                    const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
-                    
-                    config.countdown = {
-                        minutes: remainingMinutes,
-                        seconds: remainingSeconds,
-                        lastUpdate: new Date().toISOString()
-                    };
-                    
-                    localStorage.setItem('memeCoinAdminConfig', JSON.stringify(config));
-                    console.log('Updated admin config countdown:', config.countdown);
-                } catch (adminError) {
-                    console.error('Failed to update admin config:', adminError);
-                }
-            }
-            
-            console.log(`Main countdown successfully increased by ${additionalSeconds} seconds`);
-            
+            return true;
         } catch (error) {
-            console.error('Failed to increase main countdown:', error);
+            console.error('Failed to import config:', error);
+            return false;
         }
     }
 
-    addSuccessfulAddress(traderAddress, amount) {
-        try {
-            console.log('addSuccessfulAddress called with:', { traderAddress, amount });
-            
-            // Get current successful addresses
-            const successAddresses = localStorage.getItem('memeCoinSuccessAddresses');
-            let addressList = successAddresses ? JSON.parse(successAddresses) : [];
-            
-            // Create new address entry
-            const newAddress = {
-                address: traderAddress,
-                amount: amount,
-                timestamp: new Date().toISOString(),
-                date: new Date().toLocaleDateString(),
-                time: new Date().toLocaleTimeString()
-            };
-            
-            // Add to the beginning of the list
-            addressList.unshift(newAddress);
-            
-            // Keep only the latest 5 addresses
-            if (addressList.length > 5) {
-                addressList = addressList.slice(0, 5);
-            }
-            
-            // Save to localStorage
-            localStorage.setItem('memeCoinSuccessAddresses', JSON.stringify(addressList));
-            
-            // Update the UI
-            this.updateSuccessAddressesList();
-            
-            console.log('Success address added:', traderAddress);
-            
-        } catch (error) {
-            console.error('Failed to add successful address:', error);
-        }
-    }
-
-    updateSuccessAddressesList() {
-        try {
-            const successAddresses = localStorage.getItem('memeCoinSuccessAddresses');
-            const addressList = successAddresses ? JSON.parse(successAddresses) : [];
-            const container = document.getElementById('successAddresses');
-            
-            if (!container) return;
-            
-            if (addressList.length === 0) {
-                container.innerHTML = '<li class="address-item">Waiting for large buys...</li>';
-                return;
-            }
-            
-            container.innerHTML = addressList.map(addr => `
-                <li class="address-item success" onclick="copyAddress('${addr.address}')">
-                    <div class="address-text">${addr.address}</div>
-                    <div class="timestamp">${addr.date} ${addr.time} - ${addr.amount} tokens</div>
-                </li>
-            `).join('');
-            
-        } catch (error) {
-            console.error('Failed to update success addresses list:', error);
-        }
-    }
-
-    showLargeTransactionNotification(notificationData) {
-        // Create a temporary notification element
-        const notification = document.createElement('div');
-        notification.className = 'large-transaction-notification';
-        notification.innerHTML = `
-            <div class="notification-content">
-                <div class="notification-icon">🚨</div>
-                <div class="notification-text">
-                    <div class="notification-title">LARGE TRANSACTION DETECTED!</div>
-                    <div class="notification-details">
-                        ${notificationData.transaction.type.toUpperCase()} of ${notificationData.transaction.amount} tokens
-                        <br>by ${notificationData.transaction.trader}
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Add to page
-        document.body.appendChild(notification);
-        
-        // Remove after 5 seconds
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 5000);
-    }
-
-    extractTokenAmount(tx) {
-        try {
-            if (tx.meta && tx.meta.postTokenBalances && tx.meta.preTokenBalances) {
-                const lpAddress = 'WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh';
-                
-                // First try to get amount from LP balance changes
-                const lpPreBalance = tx.meta.preTokenBalances.find(b => b.owner === lpAddress);
-                const lpPostBalance = tx.meta.postTokenBalances.find(b => b.owner === lpAddress);
-                
-                if (lpPreBalance && lpPostBalance) {
-                    const preAmount = lpPreBalance.uiTokenAmount.uiAmount || 0;
-                    const postAmount = lpPostBalance.uiTokenAmount.uiAmount || 0;
-                    const lpChange = Math.abs(postAmount - preAmount);
-                    
-                    console.log('LP balance analysis:', {
-                        lpAddress,
-                        preAmount,
-                        postAmount,
-                        lpChange,
-                        hasPreBalance: !!lpPreBalance,
-                        hasPostBalance: !!lpPostBalance
-                    });
-                    
-                    if (lpChange > 0) {
-                        return lpChange.toFixed(2);
-                    }
-                }
-                
-                // Fallback: calculate from token balance changes
-                const tokenPreBalance = tx.meta.preTokenBalances.find(b => b.mint === this.tokenAddress);
-                const tokenPostBalance = tx.meta.postTokenBalances.find(b => b.mint === this.tokenAddress);
-                
-                if (tokenPreBalance && tokenPostBalance) {
-                    const preAmount = tokenPreBalance.uiTokenAmount.uiAmount || 0;
-                    const postAmount = tokenPostBalance.uiTokenAmount.uiAmount || 0;
-                    const tokenChange = Math.abs(postAmount - preAmount);
-                    
-                    if (tokenChange > 0) {
-                        return tokenChange.toFixed(2);
-                    }
-                }
-                
-                // Last resort: calculate total change
-                let totalChange = 0;
-                for (const post of tx.meta.postTokenBalances) {
-                    const pre = tx.meta.preTokenBalances.find(b => b.accountIndex === post.accountIndex);
-                    if (pre) {
-                        const change = Math.abs((post.uiTokenAmount.uiAmount || 0) - (pre.uiTokenAmount.uiAmount || 0));
-                        totalChange += change;
-                    }
-                }
-                
-                return totalChange > 0 ? totalChange.toFixed(2) : 'Unknown';
-            }
-            return 'Unknown';
-        } catch (error) {
-            console.error('Error extracting token amount:', error);
-            return 'Error';
-        }
-    }
-
-    determineTransactionType(tx) {
-        try {
-            // Check if this is a swap transaction involving the LP
-            const lpAddress = 'WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh';
-            
-            if (tx.meta && tx.meta.postTokenBalances && tx.meta.preTokenBalances) {
-                // Find LP balance changes
-                const lpPreBalance = tx.meta.preTokenBalances.find(b => b.owner === lpAddress);
-                const lpPostBalance = tx.meta.postTokenBalances.find(b => b.owner === lpAddress);
-                
-                if (lpPreBalance && lpPostBalance) {
-                    const preAmount = lpPreBalance.uiTokenAmount.uiAmount || 0;
-                    const postAmount = lpPostBalance.uiTokenAmount.uiAmount || 0;
-                    const lpChange = postAmount - preAmount;
-                    
-                    console.log('Transaction type analysis:', {
-                        lpAddress,
-                        preAmount,
-                        postAmount,
-                        lpChange,
-                        hasPreBalance: !!lpPreBalance,
-                        hasPostBalance: !!lpPostBalance
-                    });
-                    
-                    // If LP balance increased, it's a sell (tokens sold to LP)
-                    if (lpChange > 0) {
-                        console.log('Transaction type determined: Sell');
-                        return 'Sell';
-                    }
-                    // If LP balance decreased, it's a buy (tokens bought from LP)
-                    else if (lpChange < 0) {
-                        console.log('Transaction type determined: Buy');
-                        return 'Buy';
-                    }
-                }
-                
-                // Fallback: check token balance changes for the token address
-                const tokenPreBalance = tx.meta.preTokenBalances.find(b => b.mint === this.tokenAddress);
-                const tokenPostBalance = tx.meta.postTokenBalances.find(b => b.mint === this.tokenAddress);
-                
-                if (tokenPreBalance && tokenPostBalance) {
-                    const preAmount = tokenPreBalance.uiTokenAmount.uiAmount || 0;
-                    const postAmount = tokenPostBalance.uiTokenAmount.uiAmount || 0;
-                    const tokenChange = postAmount - preAmount;
-                    
-                    if (tokenChange > 0) {
-                        return 'Buy';
-                    } else if (tokenChange < 0) {
-                        return 'Sell';
-                    }
-                }
-                
-                // Check account count changes as fallback
-                const preCount = tx.meta.preTokenBalances.length;
-                const postCount = tx.meta.postTokenBalances.length;
-                
-                if (postCount > preCount) {
-                    return 'Buy';
-                } else if (postCount < preCount) {
-                    return 'Sell';
-                }
-            }
-            
-            return 'Transfer';
-        } catch (error) {
-            console.error('Error determining transaction type:', error);
-            return 'Unknown';
-        }
-    }
-
-    extractTraderAddress(tx) {
-        try {
-            const lpAddress = 'WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh';
-            
-            // Method 1: Try to find trader from token balance changes
-            if (tx.meta && tx.meta.postTokenBalances && tx.meta.preTokenBalances) {
-                const allAccounts = new Set();
-                
-                // Collect all accounts from pre and post balances
-                tx.meta.preTokenBalances.forEach(balance => {
-                    if (balance.owner && balance.owner !== lpAddress) {
-                        allAccounts.add(balance.owner);
-                    }
-                });
-                
-                tx.meta.postTokenBalances.forEach(balance => {
-                    if (balance.owner && balance.owner !== lpAddress) {
-                        allAccounts.add(balance.owner);
-                    }
-                });
-                
-                // Find the account with the largest balance change (likely the trader)
-                let traderAddress = null;
-                let maxChange = 0;
-                
-                for (const account of allAccounts) {
-                    const preBalance = tx.meta.preTokenBalances.find(b => b.owner === account);
-                    const postBalance = tx.meta.postTokenBalances.find(b => b.owner === account);
-                    
-                    if (preBalance && postBalance) {
-                        const preAmount = preBalance.uiTokenAmount.uiAmount || 0;
-                        const postAmount = postBalance.uiTokenAmount.uiAmount || 0;
-                        const change = Math.abs(postAmount - preAmount);
-                        
-                        if (change > maxChange) {
-                            maxChange = change;
-                            traderAddress = account;
-                        }
-                    }
-                }
-                
-                if (traderAddress) {
-                    console.log(`Found trader address from balance changes: ${traderAddress}`);
-                    return traderAddress.slice(0, 8) + '...' + traderAddress.slice(-8);
-                }
-            }
-            
-            // Method 2: Try to find from account keys (excluding LP)
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys) {
-                const accountKeys = tx.transaction.message.accountKeys;
-                for (const key of accountKeys) {
-                    const address = key.toString();
-                    if (address !== lpAddress) {
-                        console.log(`Found trader address from account keys: ${address}`);
-                        return address.slice(0, 8) + '...' + address.slice(-8);
-                    }
-                }
-            }
-            
-            // Method 3: Try to find from writable accounts
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.header) {
-                const header = tx.transaction.message.header;
-                const accountKeys = tx.transaction.message.accountKeys;
-                
-                // Look for writable accounts that are not the LP
-                for (let i = 0; i < accountKeys.length; i++) {
-                    const address = accountKeys[i].toString();
-                    if (address !== lpAddress) {
-                        // Check if this account is writable
-                        if (i < header.numRequiredSignatures || 
-                            (i >= header.numRequiredSignatures && i < header.numRequiredSignatures + header.numReadonlySignedAccounts) ||
-                            (i >= header.numRequiredSignatures + header.numReadonlySignedAccounts && 
-                             i < header.numRequiredSignatures + header.numReadonlySignedAccounts + header.numReadonlyUnsignedAccounts)) {
-                            console.log(`Found trader address from writable accounts: ${address}`);
-                            return address.slice(0, 8) + '...' + address.slice(-8);
-                        }
-                    }
-                }
-            }
-            
-            // Method 4: Try to find from recent blockhash (fee payer)
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.recentBlockhash) {
-                // The first account is usually the fee payer
-                if (tx.transaction.message.accountKeys && tx.transaction.message.accountKeys.length > 0) {
-                    const feePayer = tx.transaction.message.accountKeys[0].toString();
-                    if (feePayer !== lpAddress) {
-                        console.log(`Found trader address from fee payer: ${feePayer}`);
-                        return feePayer.slice(0, 8) + '...' + feePayer.slice(-8);
-                    }
-                }
-            }
-            
-            // Method 5: Try to find from any account that's not the LP
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys) {
-                const accountKeys = tx.transaction.message.accountKeys;
-                for (const key of accountKeys) {
-                    const address = key.toString();
-                    if (address !== lpAddress && address.length > 30) { // Basic validation
-                        console.log(`Found trader address from any account: ${address}`);
-                        return address.slice(0, 8) + '...' + address.slice(-8);
-                    }
-                }
-            }
-            
-            console.warn('Could not extract trader address from transaction:', tx);
-            return 'Unknown';
-        } catch (error) {
-            console.error('Error extracting trader address:', error);
-            return 'Unknown';
-        }
-    }
-    
-    extractFullTraderAddress(tx) {
-        try {
-            const lpAddress = 'WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh';
-            
-            // Method 1: Try to find trader from token balance changes
-            if (tx.meta && tx.meta.postTokenBalances && tx.meta.preTokenBalances) {
-                const allAccounts = new Set();
-                
-                // Collect all accounts from pre and post balances
-                tx.meta.preTokenBalances.forEach(balance => {
-                    if (balance.owner && balance.owner !== lpAddress) {
-                        allAccounts.add(balance.owner);
-                    }
-                });
-                
-                tx.meta.postTokenBalances.forEach(balance => {
-                    if (balance.owner && balance.owner !== lpAddress) {
-                        allAccounts.add(balance.owner);
-                    }
-                });
-                
-                // Find the account with the largest balance change (likely the trader)
-                let traderAddress = null;
-                let maxChange = 0;
-                
-                for (const account of allAccounts) {
-                    const preBalance = tx.meta.preTokenBalances.find(b => b.owner === account);
-                    const postBalance = tx.meta.postTokenBalances.find(b => b.owner === account);
-                    
-                    if (preBalance && postBalance) {
-                        const preAmount = preBalance.uiTokenAmount.uiAmount || 0;
-                        const postAmount = postBalance.uiTokenAmount.uiAmount || 0;
-                        const change = Math.abs(postAmount - preAmount);
-                        
-                        if (change > maxChange) {
-                            maxChange = change;
-                            traderAddress = account;
-                        }
-                    }
-                }
-                
-                if (traderAddress) {
-                    console.log(`Found full trader address from balance changes: ${traderAddress}`);
-                    return traderAddress;
-                }
-            }
-            
-            // Method 2: Try to find from account keys (excluding LP)
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys) {
-                const accountKeys = tx.transaction.message.accountKeys;
-                for (const key of accountKeys) {
-                    const address = key.toString();
-                    if (address !== lpAddress) {
-                        console.log(`Found full trader address from account keys: ${address}`);
-                        return address;
-                    }
-                }
-            }
-            
-            // Method 3: Try to find from writable accounts
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.header) {
-                const header = tx.transaction.message.header;
-                const accountKeys = tx.transaction.message.accountKeys;
-                
-                // Look for writable accounts that are not the LP
-                for (let i = 0; i < accountKeys.length; i++) {
-                    const address = accountKeys[i].toString();
-                    if (address !== lpAddress) {
-                        // Check if this account is writable
-                        if (i < header.numRequiredSignatures || 
-                            (i >= header.numRequiredSignatures && i < header.numRequiredSignatures + header.numReadonlySignedAccounts) ||
-                            (i >= header.numRequiredSignatures + header.numReadonlySignedAccounts && 
-                             i < header.numRequiredSignatures + header.numReadonlySignedAccounts + header.numReadonlyUnsignedAccounts)) {
-                            console.log(`Found full trader address from writable accounts: ${address}`);
-                            return address;
-                        }
-                    }
-                }
-            }
-            
-            // Method 4: Try to find from recent blockhash (fee payer)
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.recentBlockhash) {
-                // The first account is usually the fee payer
-                if (tx.transaction.message.accountKeys && tx.transaction.message.accountKeys.length > 0) {
-                    const feePayer = tx.transaction.message.accountKeys[0].toString();
-                    if (feePayer !== lpAddress) {
-                        console.log(`Found full trader address from fee payer: ${feePayer}`);
-                        return feePayer;
-                    }
-                }
-            }
-            
-            // Method 5: Try to find from any account that's not the LP
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys) {
-                const accountKeys = tx.transaction.message.accountKeys;
-                for (const key of accountKeys) {
-                    const address = key.toString();
-                    if (address !== lpAddress && address.length > 30) { // Basic validation
-                        console.log(`Found full trader address from any account: ${address}`);
-                        return address;
-                    }
-                }
-            }
-            
-            console.warn('Could not extract full trader address from transaction:', tx);
-            return 'Unknown';
-        } catch (error) {
-            console.error('Error extracting full trader address:', error);
-            return 'Unknown';
-        }
-    }
-
-    checkDetectionControl() {
-        const detectionConfig = localStorage.getItem('memeCoinDetection');
-        if (detectionConfig) {
-            try {
-                const config = JSON.parse(detectionConfig);
-                if (config.isRunning && config.rpcUrl && config.tokenAddress) {
-                    if (!this.isTracking) {
-                        this.connect(config.rpcUrl).then(connected => {
-                            if (connected) {
-                                this.startTracking(config.tokenAddress);
-                            }
-                        });
-                    }
-                } else {
-                    if (this.isTracking) {
-                        this.stopTracking();
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to parse detection configuration:', error);
-            }
-        } else {
-            if (this.isTracking) {
-                this.stopTracking();
-            }
-        }
-    }
-
-    // UI Update Methods
-    updateConnectionStatus(status, text) {
-        const statusElement = document.getElementById('connectionStatus');
-        if (statusElement) {
-            const statusMap = {
-                'connected': '🟢',
-                'error': '🔴',
-                'connecting': '🟡'
-            };
-            statusElement.innerHTML = `${statusMap[status] || '⚪'} ${text}`;
-        }
-    }
-
-    updateDetectionStatus(status, text) {
-        const statusElement = document.getElementById('detectionStatus');
-        const syncIndicator = document.querySelector('.sync-indicator');
-        
-        if (statusElement) {
-            const statusMap = {
-                'running': '🟢',
-                'stopped': '🔴',
-                'error': '🔴'
-            };
-            statusElement.innerHTML = `${statusMap[status] || '⚪'} ${text}`;
-        }
-        
-        // Update sync indicator animation
-        if (syncIndicator) {
-            if (status === 'running') {
-                syncIndicator.classList.add('active');
-            } else {
-                syncIndicator.classList.remove('active');
-            }
-        }
-    }
-
-    updateCurrentTokenAddress(address) {
-        const addressElement = document.getElementById('currentTokenAddress');
-        if (addressElement) {
-            addressElement.textContent = address.slice(0, 8) + '...' + address.slice(-8);
-        }
-    }
-
-    updateLastUpdate() {
-        const lastUpdateElement = document.getElementById('lastUpdate');
-        if (lastUpdateElement) {
-            lastUpdateElement.textContent = new Date().toLocaleTimeString();
-        }
-        
-        // Add a brief highlight effect to show real-time updates
-        this.highlightNewTransactions();
-    }
-    
-    highlightNewTransactions() {
-        const tableBody = document.getElementById('transactionTableBody');
-        if (tableBody && tableBody.children.length > 0) {
-            const firstRow = tableBody.children[0];
-            if (firstRow) {
-                firstRow.style.backgroundColor = '#374151';
-                setTimeout(() => {
-                    firstRow.style.backgroundColor = '';
-                }, 1000);
-            }
-        }
-    }
-
-    updateTransactionStats() {
-        const statsElement = document.getElementById('transactionStats');
-        const logElement = document.getElementById('transactionLog');
-        const totalTransactionsElement = document.getElementById('totalTransactions');
-        
-        if (statsElement) {
-            const total = this.transactions.length;
-            const successful = this.transactions.filter(tx => tx.status === 'Success').length;
-            const failed = total - successful;
-            
-            statsElement.innerHTML = `
-                <div>Total: ${total}</div>
-                <div>Success: ${successful}</div>
-                <div>Failed: ${failed}</div>
-            `;
-        }
-        
-        if (totalTransactionsElement) {
-            totalTransactionsElement.textContent = this.transactions.length;
-        }
-        
-        if (logElement) {
-            if (this.transactions.length === 0) {
-                logElement.innerHTML = '<div class="log-placeholder">Waiting for detected transactions...</div>';
-            } else {
-                const recentLogs = this.transactions.slice(0, 20).map(tx => `
-                    <div class="log-entry">
-                        <span class="log-time">${new Date(tx.timestamp).toLocaleTimeString()}</span>
-                        <span class="log-type ${tx.type.toLowerCase()}">${tx.type}</span>
-                        <span class="log-amount">${tx.amount}</span>
-                        <span class="log-trader">${tx.trader}</span>
-                    </div>
-                `).join('');
-                logElement.innerHTML = recentLogs;
-            }
-        }
-    }
-
-    updateTransactionList() {
-        const tableBody = document.getElementById('transactionTableBody');
-        const recordCount = document.getElementById('recordCount');
-        const syncStatus = document.querySelector('.sync-status');
-        
-        if (tableBody) {
-            if (this.transactions.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="5" class="no-records">No transaction records yet</td></tr>';
-            } else {
-                const recentTransactions = this.transactions.slice(0, 50); // Show last 50 transactions
-                tableBody.innerHTML = recentTransactions.map((tx, index) => `
-                    <tr>
-                        <td>${new Date(tx.timestamp).toLocaleTimeString()}</td>
-                        <td><span class="tx-type ${tx.type.toLowerCase()}">${tx.type}</span></td>
-                        <td>${tx.amount}</td>
-                        <td>
-                            <span class="trader-address" title="Click to copy full address" onclick="copyAddress('${tx.fullTraderAddress || tx.trader}')">
-                                ${tx.trader}
-                            </span>
-                        </td>
-                        <td>
-                            <span class="tx-signature" title="Click to copy full signature" onclick="copySignature('${tx.signature}')">
-                                ${tx.signature.slice(0, 8)}...
-                            </span>
-                        </td>
-                    </tr>
-                `).join('');
-            }
-        }
-        
-        if (recordCount) {
-            recordCount.textContent = `${this.transactions.length} records`;
-        }
-        
-        if (syncStatus) {
-            syncStatus.textContent = this.isTracking ? 'Syncing...' : 'Waiting for sync...';
-        }
-    }
-
+    // Cleanup
     start() {
-        // Start transaction tracking if conditions are met
-        this.checkDetectionControl();
+        // Backend Manager is already started in init()
+        console.log('Backend Manager started');
     }
 
     destroy() {
-        this.stopTracking();
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
+        
+        // Remove Firebase listeners
+        if (this.firebaseEnabled) {
+            Object.values(this.firebaseRefs).forEach(ref => {
+                ref.off();
+            });
+        }
+    }
+
+    // Sync all current state to Firebase
+    syncAllToFirebase() {
+        if (!this.firebaseEnabled) {
+            console.log('Firebase not available for sync');
+            return;
+        }
+
+        try {
+            // Sync admin config
+            this.firebaseRefs.adminConfig.set(this.config);
+            
+            // Sync detection control
+            const detectionControl = localStorage.getItem('memeCoinDetection');
+            if (detectionControl) {
+                this.firebaseRefs.detection.set(JSON.parse(detectionControl));
+            }
+            
+            // Sync countdown
+            const countdown = localStorage.getItem('memeCoinCountdown');
+            if (countdown) {
+                this.firebaseRefs.countdown.set(JSON.parse(countdown));
+            }
+            
+            // Sync transactions
+            const transactions = localStorage.getItem('memeCoinBackendTransactions');
+            if (transactions) {
+                this.firebaseRefs.transactions.set(JSON.parse(transactions));
+            }
+            
+            console.log('All state synced to Firebase');
+        } catch (error) {
+            console.error('Failed to sync to Firebase:', error);
+        }
+    }
+
+    // Get sync status
+    getSyncStatus() {
+        return {
+            firebaseEnabled: this.firebaseEnabled,
+            lastSync: this.config?.system?.lastUpdate || null
+        };
     }
 }
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { TransactionTracker };
+    module.exports = { BackendManager };
 } 
