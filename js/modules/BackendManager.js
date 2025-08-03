@@ -98,13 +98,16 @@ class BackendManager {
     setupFirebaseListeners() {
         if (!this.firebaseEnabled) return;
 
+        // Flag to prevent infinite recursion
+        this.isUpdatingFromFirebase = false;
+
         // Listen for admin config changes
         this.firebaseRefs.adminConfig.on('value', (snapshot) => {
             const data = snapshot.val();
-            if (data && data !== this.config) {
+            if (data && data !== this.config && !this.isUpdatingFromFirebase) {
                 console.log('Admin config updated from Firebase');
                 this.config = { ...this.getDefaultConfig(), ...data };
-                this.saveConfig(); // Save to localStorage
+                this.saveConfigToLocalStorageOnly(); // Only save to localStorage, not Firebase
                 this.onConfigChanged();
             }
         });
@@ -266,6 +269,9 @@ class BackendManager {
 
     saveConfig() {
         try {
+            // Set flag to prevent Firebase listener from triggering
+            this.isUpdatingFromFirebase = true;
+            
             this.config.system.lastUpdate = new Date().toISOString();
             
             // Save to localStorage
@@ -277,9 +283,26 @@ class BackendManager {
                 console.log('Config saved to Firebase');
             }
             
+            // Reset flag after a short delay to allow Firebase to process
+            setTimeout(() => {
+                this.isUpdatingFromFirebase = false;
+            }, 100);
+            
             return true;
         } catch (error) {
             console.error('Failed to save backend config:', error);
+            this.isUpdatingFromFirebase = false; // Reset flag on error
+            return false;
+        }
+    }
+
+    saveConfigToLocalStorageOnly() {
+        try {
+            // Save only to localStorage, not Firebase
+            localStorage.setItem('memeCoinAdminConfig', JSON.stringify(this.config));
+            return true;
+        } catch (error) {
+            console.error('Failed to save config to localStorage:', error);
             return false;
         }
     }
@@ -300,8 +323,10 @@ class BackendManager {
                 // Update local config with backend changes
                 this.updateConfigFromBackend(backendConfig);
                 
-                // Save any local changes back to backend
-                this.saveConfig();
+                // Only save if we're not currently updating from Firebase
+                if (!this.isUpdatingFromFirebase) {
+                    this.saveConfig();
+                }
             }
         } catch (error) {
             console.error('Failed to sync with backend:', error);
