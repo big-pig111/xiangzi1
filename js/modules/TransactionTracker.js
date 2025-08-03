@@ -66,7 +66,13 @@ class TransactionTracker {
                 tokenAddress: this.tokenAddress,
                 timestamp: new Date().toISOString()
             };
-            localStorage.setItem('memeCoinLastSignature', JSON.stringify(data));
+            
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinLastSignature', data);
+            } else {
+                localStorage.setItem('memeCoinLastSignature', JSON.stringify(data));
+            }
             console.log('Saved last signature:', this.lastSignature);
         } catch (error) {
             console.error('Failed to save last signature:', error);
@@ -270,7 +276,13 @@ class TransactionTracker {
             }
 
             data.lastUpdate = new Date().toISOString();
-            localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
+            
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinBackendTransactions', data);
+            } else {
+                localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
+            }
             
         } catch (error) {
             console.error('Failed to upload transaction to backend:', error);
@@ -297,7 +309,12 @@ class TransactionTracker {
                 notificationList = notificationList.slice(0, 50);
             }
             
-            localStorage.setItem('memeCoinLargeTransactionNotifications', JSON.stringify(notificationList));
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinLargeTransactionNotifications', notificationList);
+            } else {
+                localStorage.setItem('memeCoinLargeTransactionNotifications', JSON.stringify(notificationList));
+            }
 
             // Add successful address to the list (only for BUY transactions)
             console.log('Checking transaction type for success address:', {
@@ -489,8 +506,12 @@ class TransactionTracker {
                 addressList = addressList.slice(0, 5);
             }
             
-            // Save to localStorage
-            localStorage.setItem('memeCoinSuccessAddresses', JSON.stringify(addressList));
+            // Save to localStorage with sync
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinSuccessAddresses', addressList);
+            } else {
+                localStorage.setItem('memeCoinSuccessAddresses', JSON.stringify(addressList));
+            }
             
             // Update the UI
             this.updateSuccessAddressesList();
