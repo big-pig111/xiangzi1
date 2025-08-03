@@ -1230,16 +1230,33 @@
                     await loadFirebaseSDK();
                 }
 
-                // Call the sync points cloud function - using simpler approach like successful file
-                const callable = firebase.functions().httpsCallable('syncClaimedPoints');
-                const result = await callable({
-                    wallet: walletAddress,
-                    points: pointsAmount,
-                    type: rewardType
+                // 使用 Realtime Database 直接更新用户积分
+                const userRef = firebase.database().ref(`users/${walletAddress}`);
+                const userSnap = await userRef.once('value');
+                const userData = userSnap.val() || {};
+                const currentScore = userData.score || 0;
+                const newScore = currentScore + pointsAmount;
+
+                // 更新用户积分
+                await userRef.update({
+                    score: newScore,
+                    lastUpdated: Date.now(),
+                    walletAddress: walletAddress
                 });
 
-                console.log('Points synced to backend:', result.data);
-                return result.data;
+                // 记录领取历史
+                const historyRef = firebase.database().ref('claimHistory');
+                await historyRef.push({
+                    walletAddress: walletAddress,
+                    pointsAmount: pointsAmount,
+                    rewardType: rewardType,
+                    timestamp: Date.now(),
+                    previousPoints: currentScore,
+                    newPoints: newScore
+                });
+
+                console.log('Points synced to backend:', { currentScore, newScore });
+                return { success: true, currentScore, newScore };
                 
             } catch (error) {
                 console.error('Failed to sync points to backend:', error);
@@ -1263,14 +1280,14 @@
                     await loadFirebaseSDK();
                 }
 
-                // Call the get points balance cloud function - using simpler approach like successful file
-                const callable = firebase.functions().httpsCallable('getPointsBalance');
-                const result = await callable({
-                    wallet: walletAddress
-                });
+                // 直接从 Realtime Database 获取用户积分
+                const userRef = firebase.database().ref(`users/${walletAddress}`);
+                const userSnap = await userRef.once('value');
+                const userData = userSnap.val();
+                const score = userData && userData.score ? parseInt(userData.score) : 0;
 
-                console.log('Backend points balance:', result.data);
-                return result.data.points || 0;
+                console.log('Backend points balance:', score);
+                return score;
                 
             } catch (error) {
                 console.error('Failed to get backend points balance:', error);
@@ -1313,12 +1330,10 @@
             }
 
             try {
-                // Call the cloud function - using simpler approach like successful file
+                // 调用已部署的 claimToken 函数
                 const callable = firebase.functions().httpsCallable('claimToken');
                 const result = await callable({
-                    wallet: walletAddress,
-                    points: pointsAmount,
-                    tokens: tokenAmount
+                    wallet: walletAddress
                 });
 
                 return {
