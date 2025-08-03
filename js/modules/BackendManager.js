@@ -7,11 +7,14 @@ class BackendManager {
     constructor() {
         this.config = null;
         this.syncInterval = null;
+        this.firebaseEnabled = false;
+        this.firebaseRefs = {};
         this.init();
     }
 
     init() {
         this.loadConfig();
+        this.initFirebase();
         this.startSync();
     }
 
@@ -61,6 +64,83 @@ class BackendManager {
         };
     }
 
+    initFirebase() {
+        try {
+            // Check if Firebase is available
+            if (typeof firebase !== 'undefined' && firebase.database) {
+                this.firebaseEnabled = true;
+                this.firebaseRefs = {
+                    adminConfig: firebase.database().ref('adminConfig'),
+                    detection: firebase.database().ref('detection'),
+                    countdown: firebase.database().ref('countdown'),
+                    transactions: firebase.database().ref('transactions')
+                };
+                
+                // Set up real-time listeners
+                this.setupFirebaseListeners();
+                console.log('Firebase real-time sync enabled');
+            } else {
+                console.log('Firebase not available, using localStorage only');
+            }
+        } catch (error) {
+            console.error('Failed to initialize Firebase:', error);
+            this.firebaseEnabled = false;
+        }
+    }
+
+    setupFirebaseListeners() {
+        if (!this.firebaseEnabled) return;
+
+        // Listen for admin config changes
+        this.firebaseRefs.adminConfig.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && data !== this.config) {
+                console.log('Admin config updated from Firebase');
+                this.config = { ...this.getDefaultConfig(), ...data };
+                this.saveConfig(); // Save to localStorage
+                this.onConfigChanged();
+            }
+        });
+
+        // Listen for detection control changes
+        this.firebaseRefs.detection.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Detection control updated from Firebase');
+                localStorage.setItem('memeCoinDetection', JSON.stringify(data));
+                this.onDetectionChanged(data);
+            }
+        });
+
+        // Listen for countdown changes
+        this.firebaseRefs.countdown.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Countdown updated from Firebase');
+                localStorage.setItem('memeCoinCountdown', JSON.stringify(data));
+                this.onCountdownChanged(data);
+            }
+        });
+    }
+
+    onConfigChanged() {
+        // Trigger UI updates or other actions when config changes
+        const event = new CustomEvent('adminConfigChanged', { detail: this.config });
+        document.dispatchEvent(event);
+    }
+
+    onDetectionChanged(detectionData) {
+        // Trigger detection control updates
+        const event = new CustomEvent('detectionControlChanged', { detail: detectionData });
+        document.dispatchEvent(event);
+    }
+
+    onCountdownChanged(countdownData) {
+        // Trigger countdown updates
+        const event = new CustomEvent('countdownChanged', { detail: countdownData });
+        document.dispatchEvent(event);
+    }
+
     getConfig() {
         return this.config;
     }
@@ -68,7 +148,16 @@ class BackendManager {
     saveConfig() {
         try {
             this.config.system.lastUpdate = new Date().toISOString();
+            
+            // Save to localStorage
             localStorage.setItem('memeCoinAdminConfig', JSON.stringify(this.config));
+            
+            // Save to Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.adminConfig.set(this.config);
+                console.log('Config saved to Firebase');
+            }
+            
             return true;
         } catch (error) {
             console.error('Failed to save backend config:', error);
@@ -211,7 +300,15 @@ class BackendManager {
                 startTime: new Date().toISOString(),
                 lastUpdate: new Date().toISOString()
             };
+            
+            // Save to localStorage
             localStorage.setItem('memeCoinDetection', JSON.stringify(detectionConfig));
+            
+            // Save to Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.detection.set(detectionConfig);
+                console.log('Detection control saved to Firebase');
+            }
         } catch (error) {
             console.error('Failed to set detection control:', error);
         }
@@ -220,6 +317,12 @@ class BackendManager {
     clearDetectionControl() {
         try {
             localStorage.removeItem('memeCoinDetection');
+            
+            // Clear from Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.detection.remove();
+                console.log('Detection control cleared from Firebase');
+            }
         } catch (error) {
             console.error('Failed to clear detection control:', error);
         }
@@ -399,6 +502,56 @@ class BackendManager {
             clearInterval(this.syncInterval);
             this.syncInterval = null;
         }
+        
+        // Remove Firebase listeners
+        if (this.firebaseEnabled) {
+            Object.values(this.firebaseRefs).forEach(ref => {
+                ref.off();
+            });
+        }
+    }
+
+    // Sync all current state to Firebase
+    syncAllToFirebase() {
+        if (!this.firebaseEnabled) {
+            console.log('Firebase not available for sync');
+            return;
+        }
+
+        try {
+            // Sync admin config
+            this.firebaseRefs.adminConfig.set(this.config);
+            
+            // Sync detection control
+            const detectionControl = localStorage.getItem('memeCoinDetection');
+            if (detectionControl) {
+                this.firebaseRefs.detection.set(JSON.parse(detectionControl));
+            }
+            
+            // Sync countdown
+            const countdown = localStorage.getItem('memeCoinCountdown');
+            if (countdown) {
+                this.firebaseRefs.countdown.set(JSON.parse(countdown));
+            }
+            
+            // Sync transactions
+            const transactions = localStorage.getItem('memeCoinBackendTransactions');
+            if (transactions) {
+                this.firebaseRefs.transactions.set(JSON.parse(transactions));
+            }
+            
+            console.log('All state synced to Firebase');
+        } catch (error) {
+            console.error('Failed to sync to Firebase:', error);
+        }
+    }
+
+    // Get sync status
+    getSyncStatus() {
+        return {
+            firebaseEnabled: this.firebaseEnabled,
+            lastSync: this.config?.system?.lastUpdate || null
+        };
     }
 }
 
