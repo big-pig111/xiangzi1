@@ -298,6 +298,9 @@ class MainCountdown {
                 transaction: lastBuyTransaction
             });
             
+            // Create main countdown address snapshot for reward evidence
+            this.createMainCountdownAddressSnapshot(winner, amount, lastBuyTransaction);
+            
             // Create main countdown reward
             this.createMainCountdownReward(winner, amount);
             
@@ -306,8 +309,60 @@ class MainCountdown {
         }
     }
 
+    createMainCountdownAddressSnapshot(winner, amount, transaction) {
+        try {
+            console.log('Creating main countdown address snapshot for reward evidence...');
+            
+            // Create address snapshot data
+            const addressSnapshot = {
+                snapshotId: `main_countdown_snapshot_${Date.now()}`,
+                type: 'main_countdown_end',
+                winner: winner,
+                transactionAmount: amount,
+                transaction: transaction,
+                timestamp: Date.now(),
+                createdAt: new Date().toISOString(),
+                evidence: {
+                    address: winner,
+                    transactionSignature: transaction.signature,
+                    transactionAmount: amount,
+                    transactionType: transaction.type,
+                    blockTime: transaction.blockTime
+                }
+            };
+
+            // Get existing main countdown snapshots
+            const existingSnapshots = JSON.parse(localStorage.getItem('mainCountdownAddressSnapshots') || '[]');
+            existingSnapshots.push(addressSnapshot);
+            
+            // Keep only last 20 main countdown snapshots
+            if (existingSnapshots.length > 20) {
+                existingSnapshots.shift();
+            }
+
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('mainCountdownAddressSnapshots', existingSnapshots);
+            } else {
+                localStorage.setItem('mainCountdownAddressSnapshots', JSON.stringify(existingSnapshots));
+            }
+            
+            console.log('Main countdown address snapshot created:', addressSnapshot.snapshotId);
+            console.log('Snapshot evidence data:', addressSnapshot.evidence);
+            
+            return addressSnapshot;
+        } catch (error) {
+            console.error('Failed to create main countdown address snapshot:', error);
+            return null;
+        }
+    }
+
     createMainCountdownReward(winner, amount) {
         try {
+            // Get the latest main countdown address snapshot for evidence
+            const snapshots = JSON.parse(localStorage.getItem('mainCountdownAddressSnapshots') || '[]');
+            const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+            
             const mainCountdownReward = {
                 id: `main_countdown_reward_${Date.now()}`,
                 type: 'main-countdown',
@@ -317,7 +372,9 @@ class MainCountdown {
                 transactionAmount: amount,
                 timestamp: Date.now(),
                 claimed: false,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                snapshotId: latestSnapshot ? latestSnapshot.snapshotId : null,
+                evidence: latestSnapshot ? latestSnapshot.evidence : null
             };
 
             // Get existing main countdown rewards
