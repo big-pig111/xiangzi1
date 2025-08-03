@@ -360,6 +360,71 @@
                     </div>
                 </section>
 
+                <!-- Main Countdown Address Snapshot Management Panel -->
+                <section class="config-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa fa-trophy"></i>
+                            Main Countdown Address Snapshot Management
+                        </h2>
+                        <div class="panel-status">
+                            <span class="status-dot" id="mainCountdownSnapshotStatusDot"></span>
+                            <span class="status-text" id="mainCountdownSnapshotStatusText">Not Configured</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label>Main Countdown Address Snapshot Description:</label>
+                            <div class="info-display">
+                                <span class="info-text">Records the last large buy transaction address when main countdown ends, serving as evidence for reward claims</span>
+                                <span class="info-detail">Similar to holdings snapshots, but specifically for main countdown winners</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Main Countdown Snapshot Statistics:</label>
+                            <div class="status-display" id="mainCountdownSnapshotStatusDisplay">
+                                <span class="status-item">
+                                    <i class="fa fa-trophy"></i>
+                                    Total Snapshots: <span id="mainCountdownSnapshotCount">0</span>
+                                </span>
+                                <span class="status-item">
+                                    <i class="fa fa-clock-o"></i>
+                                    Latest Snapshot: <span id="mainCountdownSnapshotLatest">--</span>
+                                </span>
+                                <span class="status-item">
+                                    <i class="fa fa-user"></i>
+                                    Latest Winner: <span id="mainCountdownSnapshotWinner">--</span>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-info" id="viewMainCountdownSnapshotsBtn">
+                                <i class="fa fa-eye"></i>
+                                View Main Countdown Snapshots
+                            </button>
+                            <button class="btn btn-success" id="exportMainCountdownSnapshotsBtn">
+                                <i class="fa fa-download"></i>
+                                Export Main Countdown Snapshots
+                            </button>
+                            <button class="btn btn-warning" id="fixMainCountdownRewardsBtn">
+                                <i class="fa fa-wrench"></i>
+                                Fix Main Countdown Rewards
+                            </button>
+                            <button class="btn btn-secondary" id="createTestMainCountdownSnapshotBtn">
+                                <i class="fa fa-flask"></i>
+                                Create Test Main Countdown Snapshot
+                            </button>
+                            <button class="btn btn-danger" id="clearMainCountdownSnapshotsBtn">
+                                <i class="fa fa-trash"></i>
+                                Clear Main Countdown Snapshots
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Transaction Detection Control Panel -->
                 <section class="config-panel">
                     <div class="panel-header">
