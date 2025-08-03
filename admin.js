@@ -269,19 +269,25 @@ class ConfigManager {
         this.setLoadingState('startDetectionBtn', true);
 
         try {
-            // Save detection status to localStorage, frontend will automatically detect and start
-            const detectionConfig = {
-                isRunning: true,
-                rpcUrl: this.config.rpc.url,
-                tokenAddress: this.config.token.address,
-                tokenName: this.config.token.name,
-                startTime: new Date().toISOString(),
-                lastUpdate: new Date().toISOString()
-            };
-            localStorage.setItem('memeCoinDetection', JSON.stringify(detectionConfig));
+            // Use BackendManager for Firebase sync if available
+            if (window.backendManager) {
+                window.backendManager.setDetectionControl(true, this.config.rpc.url, this.config.token.address);
+                this.log('Detection started with Firebase sync', 'success');
+            } else {
+                // Fallback to localStorage only
+                const detectionConfig = {
+                    isRunning: true,
+                    rpcUrl: this.config.rpc.url,
+                    tokenAddress: this.config.token.address,
+                    tokenName: this.config.token.name,
+                    startTime: new Date().toISOString(),
+                    lastUpdate: new Date().toISOString()
+                };
+                localStorage.setItem('memeCoinDetection', JSON.stringify(detectionConfig));
+                this.log('Detection started (localStorage only)', 'success');
+            }
 
             this.updateDetectionStatus();
-            this.log('Detection started', 'success');
         } catch (error) {
             this.log(`Failed to start detection: ${error.message}`, 'error');
         } finally {
@@ -293,11 +299,17 @@ class ConfigManager {
     stopDetection() {
         this.showModal('Confirm Stop', 'Are you sure you want to stop detection?', () => {
             try {
-                // Clear detection status
-                localStorage.removeItem('memeCoinDetection');
+                // Use BackendManager for Firebase sync if available
+                if (window.backendManager) {
+                    window.backendManager.clearDetectionControl();
+                    this.log('Detection stopped with Firebase sync', 'warning');
+                } else {
+                    // Fallback to localStorage only
+                    localStorage.removeItem('memeCoinDetection');
+                    this.log('Detection stopped (localStorage only)', 'warning');
+                }
                 
                 this.updateDetectionStatus();
-                this.log('Detection stopped', 'warning');
             } catch (error) {
                 this.log(`Failed to stop detection: ${error.message}`, 'error');
             }
@@ -2575,6 +2587,7 @@ class AdminApp {
     constructor() {
         this.configManager = null;
         this.systemMonitor = null;
+        this.backendManager = null;
     }
 
     // Initialize application
@@ -2582,8 +2595,29 @@ class AdminApp {
         this.configManager = new ConfigManager();
         this.systemMonitor = new SystemMonitor();
         
+        // Initialize BackendManager for Firebase sync
+        this.initBackendManager();
+        
         console.log('Meme Coin Admin Management System started');
         this.configManager.log('Admin management system started', 'success');
+    }
+
+    // Initialize BackendManager
+    initBackendManager() {
+        try {
+            // Check if BackendManager module is available
+            if (typeof BackendManager !== 'undefined') {
+                this.backendManager = new BackendManager();
+                window.backendManager = this.backendManager;
+                this.configManager.log('BackendManager initialized with Firebase sync', 'success');
+            } else {
+                console.log('BackendManager not available, using localStorage only');
+                this.configManager.log('BackendManager not available, using localStorage only', 'warning');
+            }
+        } catch (error) {
+            console.error('Failed to initialize BackendManager:', error);
+            this.configManager.log('Failed to initialize BackendManager', 'error');
+        }
     }
 }
 
