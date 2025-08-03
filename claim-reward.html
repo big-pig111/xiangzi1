@@ -885,7 +885,7 @@
             }
         }
 
-        // Claim main countdown reward
+        // Claim main countdown reward (Enhanced version learning from holding rewards)
         async function claimMainCountdown() {
             if (!walletConnected) {
                 showNotification('Please connect your wallet first!', 'error');
@@ -901,27 +901,66 @@
             showNotification(`Claiming ${window.mainCountdownTotalPoints.toLocaleString()} main countdown points...`, 'info');
             
             try {
-                // Mark all eligible rewards as claimed
+                // Mark all eligible rewards as claimed with enhanced tracking
                 const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
                 let claimedCount = 0;
                 let claimedPoints = 0;
+                const claimTransactionHash = `claim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 
                 mainCountdownRewards.forEach((reward, index) => {
                     if (reward.winner === walletAddress && !reward.claimed) {
+                        // 增强领取状态更新，学习持仓奖励的完整实现
                         reward.claimed = true;
                         reward.claimedAt = new Date().toISOString();
+                        
+                        // 更新奖励状态跟踪
+                        if (reward.status) {
+                            reward.status.claimed = true;
+                            reward.status.claimedAt = new Date().toISOString();
+                            reward.status.claimTransactionHash = claimTransactionHash;
+                        }
+                        
+                        // 添加领取详情
+                        reward.claimDetails = {
+                            claimTime: new Date().toISOString(),
+                            claimTransactionHash: claimTransactionHash,
+                            claimMethod: 'wallet_claim',
+                            claimAddress: walletAddress,
+                            claimEvidence: reward.evidence ? {
+                                originalTransaction: reward.evidence,
+                                claimVerification: 'verified_by_snapshot'
+                            } : null
+                        };
+                        
                         claimedCount++;
                         claimedPoints += reward.amount || 10000;
+                        
+                        console.log(`Enhanced main countdown reward claimed:`, {
+                            rewardId: reward.id,
+                            winner: reward.winner,
+                            amount: reward.amount,
+                            claimTime: reward.claimedAt,
+                            claimTransactionHash: claimTransactionHash
+                        });
                     }
                 });
                 
-                localStorage.setItem('mainCountdownRewards', JSON.stringify(mainCountdownRewards));
+                // 使用增强的同步机制保存奖励数据
+                if (window.backendManager) {
+                    window.backendManager.setLocalStorageWithSync('mainCountdownRewards', mainCountdownRewards);
+                } else {
+                    localStorage.setItem('mainCountdownRewards', JSON.stringify(mainCountdownRewards));
+                }
 
                 // Sync claimed points to backend
                 await syncClaimedPointsToBackend(walletAddress, claimedPoints, 'main-countdown');
 
-                // Add to reward history
-                addToRewardHistory(`Main Countdown Winner (${claimedCount} rounds)`, claimedPoints, new Date().toISOString());
+                // Add to reward history with enhanced details
+                addToRewardHistory(`Main Countdown Winner (${claimedCount} rounds)`, claimedPoints, new Date().toISOString(), {
+                    rewardType: 'main-countdown',
+                    claimTransactionHash: claimTransactionHash,
+                    evidence: mainCountdownRewards.find(r => r.winner === walletAddress && r.claimed)?.evidence
+                });
 
                 // Update display
                 mainCountdownEligible = false;
@@ -929,6 +968,14 @@
                 updateDisplay();
 
                 showNotification(`Successfully claimed ${claimedPoints.toLocaleString()} points! 🏆`, 'success');
+                
+                // 记录领取统计
+                console.log('Main countdown reward claim statistics:', {
+                    totalClaimed: claimedCount,
+                    totalPoints: claimedPoints,
+                    claimTransactionHash: claimTransactionHash,
+                    claimTime: new Date().toISOString()
+                });
             } catch (error) {
                 console.error('Failed to claim main countdown reward:', error);
                 showNotification(`Failed to claim reward: ${error.message}`, 'error');
@@ -970,8 +1017,12 @@
                 // Sync claimed points to backend
                 await syncClaimedPointsToBackend(walletAddress, claimedPoints, 'holding');
 
-                // Add to reward history
-                addToRewardHistory(`Holding Reward (${claimedCount} rounds)`, claimedPoints, new Date().toISOString());
+                // Add to reward history with enhanced details
+                addToRewardHistory(`Holding Reward (${claimedCount} rounds)`, claimedPoints, new Date().toISOString(), {
+                    rewardType: 'holding',
+                    claimTransactionHash: `holding_claim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    evidence: holdingRewards.find(r => r.eligibleAddresses && r.eligibleAddresses.includes(walletAddress) && r.claimed)?.snapshotId
+                });
 
                 // Update display
                 holdingEligible = false;
@@ -985,17 +1036,35 @@
             }
         }
 
-        // Add to reward history
-        function addToRewardHistory(type, amount, timestamp) {
+        // Add to reward history (Enhanced version)
+        function addToRewardHistory(type, amount, timestamp, additionalDetails = {}) {
             const history = JSON.parse(localStorage.getItem('rewardHistory') || '[]');
-            history.push({
+            const historyEntry = {
                 type,
                 amount,
                 timestamp,
-                address: walletAddress
-            });
+                address: walletAddress,
+                // 增强历史记录，学习持仓奖励的完整实现
+                details: {
+                    rewardType: additionalDetails.rewardType || 'unknown',
+                    claimTransactionHash: additionalDetails.claimTransactionHash || null,
+                    evidence: additionalDetails.evidence || null,
+                    claimMethod: additionalDetails.claimMethod || 'wallet_claim',
+                    claimVerification: additionalDetails.claimVerification || 'standard'
+                }
+            };
+            
+            history.push(historyEntry);
+            
+            // 保持历史记录数量限制
+            if (history.length > 100) {
+                history.shift();
+            }
+            
             localStorage.setItem('rewardHistory', JSON.stringify(history));
             updateRewardHistory();
+            
+            console.log('Enhanced reward history entry added:', historyEntry);
         }
 
         // Update reward history display
