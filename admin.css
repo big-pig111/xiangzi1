@@ -1137,4 +1137,38 @@ body {
 .reward-history-status.unclaimed {
     background: var(--warning-color);
     color: white;
+}
+
+/* Reward Evidence Styles */
+.reward-evidence {
+    max-width: 300px;
+    font-size: 0.85em;
+}
+
+.evidence-info {
+    background-color: #F3F4F6;
+    border: 1px solid #E5E7EB;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 2px 0;
+}
+
+.evidence-info div {
+    margin: 2px 0;
+    word-break: break-all;
+}
+
+.evidence-info strong {
+    color: #374151;
+    font-weight: 600;
+}
+
+.no-evidence {
+    color: #9CA3AF;
+    font-style: italic;
+}
+
+.holding-evidence {
+    color: #059669;
+    font-weight: 500;
 } 
