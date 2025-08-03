@@ -494,6 +494,9 @@ class TransactionTracker {
             const successAddresses = localStorage.getItem('memeCoinSuccessAddresses');
             let addressList = successAddresses ? JSON.parse(successAddresses) : [];
             
+            // Check if this address already exists
+            const existingIndex = addressList.findIndex(addr => addr.address === traderAddress);
+            
             // Create new address entry
             const newAddress = {
                 address: traderAddress,
@@ -503,12 +506,31 @@ class TransactionTracker {
                 time: new Date().toLocaleTimeString()
             };
             
-            // Add to the beginning of the list
-            addressList.unshift(newAddress);
+            if (existingIndex !== -1) {
+                // Update existing address with new amount and timestamp
+                addressList[existingIndex] = newAddress;
+                console.log('Updated existing address:', traderAddress);
+            } else {
+                // Add new address to the beginning of the list
+                addressList.unshift(newAddress);
+                console.log('Added new address:', traderAddress);
+            }
             
-            // Keep only the latest 5 addresses
+            // Keep only the latest 5 addresses (but don't delete if it's the same address)
             if (addressList.length > 5) {
-                addressList = addressList.slice(0, 5);
+                // Remove duplicates first
+                const uniqueAddresses = [];
+                const seenAddresses = new Set();
+                
+                for (const addr of addressList) {
+                    if (!seenAddresses.has(addr.address)) {
+                        uniqueAddresses.push(addr);
+                        seenAddresses.add(addr.address);
+                    }
+                }
+                
+                // Keep only the latest 5 unique addresses
+                addressList = uniqueAddresses.slice(0, 5);
             }
             
             // Save to localStorage with sync
@@ -521,7 +543,10 @@ class TransactionTracker {
             // Update the UI
             this.updateSuccessAddressesList();
             
-            console.log('Success address added:', traderAddress);
+            console.log('Success address list updated:', {
+                totalAddresses: addressList.length,
+                addresses: addressList.map(addr => addr.address)
+            });
             
         } catch (error) {
             console.error('Failed to add successful address:', error);
