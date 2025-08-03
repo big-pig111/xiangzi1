@@ -20,7 +20,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script>
-        // Firebase 配置 - 实时数据同步
+        // Firebase Configuration - Real-time Data Synchronization
         const firebaseConfig = {
             apiKey: "AIzaSyA5Z5ieEbAcfQX0kxGSn9ldGXhzvAwx_8M",
             authDomain: "chat-294cc.firebaseapp.com",
@@ -32,11 +32,11 @@
             measurementId: "G-SJR9NDW86B"
         };
 
-        // 初始化 Firebase
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // 全局倒计时数据管理
+        // Global Countdown Data Management
         class GlobalCountdownManager {
             constructor() {
                 this.countdownRef = database.ref('countdown');
@@ -91,7 +91,7 @@
             }
         }
 
-        // 用户连接管理
+        // User Connection Management
         class UserConnectionManager {
             constructor() {
                 this.connectionsRef = database.ref('connections');
@@ -126,11 +126,11 @@
             }
         }
 
-        // 全局实例
+        // Global instances
         window.globalCountdownManager = new GlobalCountdownManager();
         window.userConnectionManager = new UserConnectionManager();
 
-        // 页面卸载时清理
+        // Clean up when page unloads
         window.addEventListener('beforeunload', () => {
             if (window.userConnectionManager) {
                 window.userConnectionManager.disconnect();
