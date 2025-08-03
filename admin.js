@@ -1,129 +1,36 @@
-// Admin Management System Configuration
-const ADMIN_CONFIG = {
-    version: 'v1.0.0',
-    storageKey: 'memeCoinAdminConfig',
-    logMaxEntries: 100
-};
+/**
+ * Backend Manager Module
+ * Handles communication with backend system and configuration management
+ */
 
-// Global event listener binding function - specifically solves Vercel deployment issues
-function bindEventListenersWithRetry() {
-    console.log('Attempting to bind event listeners...');
-    
-    // Define all buttons and events that need to be bound
-    const buttonEvents = [
-        { id: 'resetCountdownBtn', event: 'click', handler: 'resetCountdown' },
-        { id: 'saveCountdownBtn', event: 'click', handler: 'saveCountdownConfig' },
-        { id: 'testRpcBtn', event: 'click', handler: 'testRpcConnection' },
-        { id: 'saveRpcBtn', event: 'click', handler: 'saveRpcConfig' },
-        { id: 'validateTokenBtn', event: 'click', handler: 'validateTokenAddress' },
-        { id: 'saveTokenBtn', event: 'click', handler: 'saveTokenConfig' },
-        { id: 'resetRewardCountdownBtn', event: 'click', handler: 'resetRewardCountdown' },
-        { id: 'saveRewardCountdownBtn', event: 'click', handler: 'saveRewardCountdownConfig' },
-        { id: 'startDetectionBtn', event: 'click', handler: 'startDetection' },
-        { id: 'stopDetectionBtn', event: 'click', handler: 'stopDetection' },
-        { id: 'refreshDetectionBtn', event: 'click', handler: 'refreshDetectionStatus' },
-        { id: 'viewTransactionsBtn', event: 'click', handler: 'viewTransactions' },
-        { id: 'clearTransactionsBtn', event: 'click', handler: 'clearTransactions' },
-        { id: 'exportTransactionsBtn', event: 'click', handler: 'exportTransactions' },
-        { id: 'viewLargeTransactionsBtn', event: 'click', handler: 'viewLargeTransactions' },
-        { id: 'clearLargeTransactionsBtn', event: 'click', handler: 'clearLargeTransactions' },
-        { id: 'exportLargeTransactionsBtn', event: 'click', handler: 'exportLargeTransactions' },
-        { id: 'viewSuccessAddressesBtn', event: 'click', handler: 'viewSuccessAddresses' },
-        { id: 'clearSuccessAddressesBtn', event: 'click', handler: 'clearSuccessAddresses' },
-        { id: 'exportSuccessAddressesBtn', event: 'click', handler: 'exportSuccessAddresses' },
-        { id: 'viewHoldersSnapshotsBtn', event: 'click', handler: 'viewHoldersSnapshots' },
-        { id: 'exportHoldersSnapshotsBtn', event: 'click', handler: 'exportHoldersSnapshots' },
-        { id: 'fixHoldingRewardsBtn', event: 'click', handler: 'fixHoldingRewardsFromSnapshots' },
-        { id: 'createTestRewardsBtn', event: 'click', handler: 'createTestHoldingRewards' },
-        { id: 'createTestMainCountdownBtn', event: 'click', handler: 'createTestMainCountdownRewards' },
-        { id: 'clearHoldersSnapshotsBtn', event: 'click', handler: 'clearHoldersSnapshots' },
-        { id: 'viewRewardDataBtn', event: 'click', handler: 'viewRewardData' },
-        { id: 'exportRewardDataBtn', event: 'click', handler: 'exportRewardData' },
-        { id: 'viewRewardHistoryBtn', event: 'click', handler: 'viewRewardHistory' },
-        { id: 'clearRewardDataBtn', event: 'click', handler: 'clearRewardData' },
-        { id: 'saveAllBtn', event: 'click', handler: 'saveAllConfig' },
-        { id: 'refreshBtn', event: 'click', handler: 'refreshStatus' },
-        { id: 'clearCacheBtn', event: 'click', handler: 'clearCache' },
-        { id: 'exportConfigBtn', event: 'click', handler: 'exportConfig' },
-        { id: 'clearLogBtn', event: 'click', handler: 'clearLog' },
-        { id: 'exportLogBtn', event: 'click', handler: 'exportLog' },
-        { id: 'modalClose', event: 'click', handler: 'closeModal' },
-        { id: 'modalCancel', event: 'click', handler: 'closeModal' }
-    ];
-    
-    let boundCount = 0;
-    let totalButtons = buttonEvents.length;
-    
-    buttonEvents.forEach(({ id, event, handler }) => {
-        const element = document.getElementById(id);
-        if (element) {
-            // Remove existing event listeners (prevent duplicate binding)
-            element.removeEventListener(event, window.adminApp?.configManager?.[handler]);
-            
-            // Add new event listeners
-            element.addEventListener(event, async () => {
-                console.log(`Button ${id} clicked, calling ${handler}`);
-                if (window.adminApp?.configManager?.[handler]) {
-                    try {
-                        const result = window.adminApp.configManager[handler]();
-                        // If it's an async function, wait for it to complete
-                        if (result && typeof result.then === 'function') {
-                            await result;
-                        }
-                    } catch (error) {
-                        console.error(`Error in handler ${handler}:`, error);
-                    }
-                } else {
-                    console.error(`Handler ${handler} not found in configManager`);
-                }
-            });
-            
-            boundCount++;
-            console.log(`Successfully bound ${event} event to ${id}`);
-        } else {
-            console.warn(`Button with id '${id}' not found in DOM`);
-        }
-    });
-    
-    console.log(`Event binding completed: ${boundCount}/${totalButtons} buttons bound`);
-    
-    // Special check for reset countdown button
-    const resetBtn = document.getElementById('resetCountdownBtn');
-    if (resetBtn) {
-        console.log('✅ Reset countdown button found and bound');
-        // Add a test click event
-        resetBtn.addEventListener('click', () => {
-            console.log('🎯 Reset countdown button clicked!');
-        });
-    } else {
-        console.error('❌ Reset countdown button NOT found!');
-    }
-    
-    return boundCount;
-}
-
-// Configuration Management Class
-class ConfigManager {
+class BackendManager {
     constructor() {
-        this.config = this.loadConfig();
+        this.config = null;
+        this.syncInterval = null;
+        this.firebaseEnabled = false;
+        this.firebaseRefs = {};
         this.init();
     }
 
-    // Initialize configuration
     init() {
-        this.setupEventListeners();
-        this.loadSavedConfig();
-        this.updateSystemStatus();
-        this.updateLargeTransactionStats();
-        this.updateSuccessAddressStats();
-        this.updateHoldersSnapshotStats();
-        this.updateRewardDataStats();
+        this.loadConfig();
+        this.initFirebase();
+        this.startSync();
     }
 
-    // Load configuration
+    // Configuration Management
     loadConfig() {
-        const saved = localStorage.getItem(ADMIN_CONFIG.storageKey);
-        return saved ? JSON.parse(saved) : {
+        try {
+            const adminConfig = localStorage.getItem('memeCoinAdminConfig');
+            this.config = adminConfig ? JSON.parse(adminConfig) : this.getDefaultConfig();
+        } catch (error) {
+            console.error('Failed to load backend config:', error);
+            this.config = this.getDefaultConfig();
+        }
+    }
+
+    getDefaultConfig() {
+        return {
             rpc: {
                 url: '',
                 connected: false,
@@ -136,12 +43,19 @@ class ConfigManager {
             },
             countdown: {
                 minutes: 5,
-                message: 'TO THE MOON!!! 🚀'
+                seconds: 0,
+                message: 'TO THE MOON!!! 🚀',
+                lastUpdate: new Date().toISOString()
             },
             rewardCountdown: {
                 minutes: 20,
                 seconds: 0,
                 lastUpdate: new Date().toISOString()
+            },
+            detection: {
+                isRunning: false,
+                startTime: null,
+                lastUpdate: null
             },
             system: {
                 lastUpdate: new Date().toISOString(),
@@ -150,2489 +64,729 @@ class ConfigManager {
         };
     }
 
-    // Save configuration
-    saveConfig() {
-        this.config.system.lastUpdate = new Date().toISOString();
-        localStorage.setItem(ADMIN_CONFIG.storageKey, JSON.stringify(this.config));
-        this.log('Configuration saved', 'success');
-        this.updateSystemStatus();
-    }
-
-    // Set up event listeners
-    setupEventListeners() {
-        console.log('Setting up event listeners...');
-        
-        // Use multiple safeguards to ensure event listeners are properly bound
-        const bindEvents = () => {
-            console.log('Binding events...');
-            const boundCount = bindEventListenersWithRetry();
-            
-            if (boundCount === 0) {
-                console.warn('No events bound, retrying in 1 second...');
-                setTimeout(bindEvents, 1000);
-            } else {
-                console.log(`Successfully bound ${boundCount} events`);
-            }
-        };
-        
-        // Try binding immediately
-        bindEvents();
-        
-        // If DOM is not ready, wait for DOMContentLoaded
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', bindEvents);
-        }
-        
-        // Additional safeguard: try again after page is fully loaded
-        window.addEventListener('load', bindEvents);
-        
-        // Periodically check and rebind (prevent dynamic content loading issues)
-        setInterval(() => {
-            const resetBtn = document.getElementById('resetCountdownBtn');
-            if (resetBtn && !resetBtn.hasAttribute('data-bound')) {
-                console.log('Re-binding events due to dynamic content...');
-                bindEvents();
-            }
-        }, 5000);
-    }
-
-    // Bind event listeners - now using global function
-    bindEventListeners() {
-        // This method is now replaced by the global bindEventListenersWithRetry function
-        console.log('bindEventListeners called - using global function instead');
-        return bindEventListenersWithRetry();
-    }
-
-    // Load saved configuration to interface
-    loadSavedConfig() {
-        // RPC Configuration
-        const rpcUrlInput = document.getElementById('rpcUrl');
-        if (rpcUrlInput) {
-            rpcUrlInput.value = this.config.rpc.url;
-        }
-
-        // Token Configuration
-        const tokenAddressInput = document.getElementById('tokenAddress');
-        const tokenNameInput = document.getElementById('tokenName');
-        if (tokenAddressInput) {
-            tokenAddressInput.value = this.config.token.address;
-        }
-        if (tokenNameInput) {
-            tokenNameInput.value = this.config.token.name;
-        }
-
-        // Countdown Configuration
-        const countdownMinutesInput = document.getElementById('countdownMinutes');
-        const countdownMessageInput = document.getElementById('countdownMessage');
-        if (countdownMinutesInput) {
-            countdownMinutesInput.value = this.config.countdown.minutes;
-        }
-        if (countdownMessageInput) {
-            countdownMessageInput.value = this.config.countdown.message;
-        }
-
-        // Holding Countdown Configuration
-        const rewardCountdownMinutesInput = document.getElementById('rewardCountdownMinutes');
-        const rewardCountdownSecondsInput = document.getElementById('rewardCountdownSeconds');
-        if (rewardCountdownMinutesInput) {
-            rewardCountdownMinutesInput.value = this.config.rewardCountdown.minutes;
-        }
-        if (rewardCountdownSecondsInput) {
-            rewardCountdownSecondsInput.value = this.config.rewardCountdown.seconds;
-        }
-
-        // Check if there's a global countdown running
-        this.checkGlobalCountdown();
-
-        this.updateStatusIndicators();
-        this.updateDetectionStatus();
-    }
-
-    // Start Detection
-    async startDetection() {
-        // Check RPC and token configuration
-        if (!this.config.rpc.url || !this.config.token.address) {
-            this.showModal('Error', 'Please configure RPC URL and token address first');
-            return;
-        }
-
-        if (!this.config.rpc.connected) {
-            this.showModal('Error', 'Please test RPC connection first');
-            return;
-        }
-
-        if (!this.config.token.validated) {
-            this.showModal('Error', 'Please validate token address first');
-            return;
-        }
-
-        this.setLoadingState('startDetectionBtn', true);
-
+    initFirebase() {
         try {
-            // Use BackendManager for Firebase sync if available
-            if (window.backendManager) {
-                window.backendManager.setDetectionControl(true, this.config.rpc.url, this.config.token.address);
-                this.log('Detection started with Firebase sync', 'success');
-            } else {
-                // Fallback to localStorage only
-                const detectionConfig = {
-                    isRunning: true,
-                    rpcUrl: this.config.rpc.url,
-                    tokenAddress: this.config.token.address,
-                    tokenName: this.config.token.name,
-                    startTime: new Date().toISOString(),
-                    lastUpdate: new Date().toISOString()
+            // Check if Firebase is available
+            if (typeof firebase !== 'undefined' && firebase.database) {
+                this.firebaseEnabled = true;
+                this.firebaseRefs = {
+                    adminConfig: firebase.database().ref('adminConfig'),
+                    detection: firebase.database().ref('detection'),
+                    countdown: firebase.database().ref('countdown'),
+                    rewardCountdown: firebase.database().ref('rewardCountdown'),
+                    transactions: firebase.database().ref('transactions'),
+                    backendTransactions: firebase.database().ref('backendTransactions'),
+                    largeTransactionNotifications: firebase.database().ref('largeTransactionNotifications'),
+                    successAddresses: firebase.database().ref('successAddresses'),
+                    lastSignature: firebase.database().ref('lastSignature'),
+                    tokenHolders: firebase.database().ref('tokenHolders'),
+                    holdersSnapshots: firebase.database().ref('holdersSnapshots')
                 };
-                localStorage.setItem('memeCoinDetection', JSON.stringify(detectionConfig));
-                this.log('Detection started (localStorage only)', 'success');
+                
+                // Set up real-time listeners
+                this.setupFirebaseListeners();
+                console.log('Firebase real-time sync enabled for all data types');
+            } else {
+                console.log('Firebase not available, using localStorage only');
             }
-
-            this.updateDetectionStatus();
         } catch (error) {
-            this.log(`Failed to start detection: ${error.message}`, 'error');
-        } finally {
-            this.setLoadingState('startDetectionBtn', false);
+            console.error('Failed to initialize Firebase:', error);
+            this.firebaseEnabled = false;
         }
     }
 
-    // Stop Detection
-    stopDetection() {
-        this.showModal('Confirm Stop', 'Are you sure you want to stop detection?', () => {
-            try {
-                // Use BackendManager for Firebase sync if available
-                if (window.backendManager) {
-                    window.backendManager.clearDetectionControl();
-                    this.log('Detection stopped with Firebase sync', 'warning');
-                } else {
-                    // Fallback to localStorage only
-                    localStorage.removeItem('memeCoinDetection');
-                    this.log('Detection stopped (localStorage only)', 'warning');
-                }
-                
-                this.updateDetectionStatus();
-            } catch (error) {
-                this.log(`Failed to stop detection: ${error.message}`, 'error');
+    setupFirebaseListeners() {
+        if (!this.firebaseEnabled) return;
+
+        // Listen for admin config changes
+        this.firebaseRefs.adminConfig.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && data !== this.config) {
+                console.log('Admin config updated from Firebase');
+                this.config = { ...this.getDefaultConfig(), ...data };
+                this.saveConfig(); // Save to localStorage
+                this.onConfigChanged();
+            }
+        });
+
+        // Listen for detection control changes
+        this.firebaseRefs.detection.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Detection control updated from Firebase');
+                localStorage.setItem('memeCoinDetection', JSON.stringify(data));
+                this.onDetectionChanged(data);
+            }
+        });
+
+        // Listen for countdown changes
+        this.firebaseRefs.countdown.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Countdown updated from Firebase');
+                localStorage.setItem('memeCoinCountdown', JSON.stringify(data));
+                this.onCountdownChanged(data);
+            }
+        });
+
+        // Listen for reward countdown changes
+        this.firebaseRefs.rewardCountdown.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Reward countdown updated from Firebase');
+                localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(data));
+                this.onRewardCountdownChanged(data);
+            }
+        });
+
+        // Listen for backend transactions changes
+        this.firebaseRefs.backendTransactions.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Backend transactions updated from Firebase');
+                localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
+                this.onBackendTransactionsChanged(data);
+            }
+        });
+
+        // Listen for large transaction notifications changes
+        this.firebaseRefs.largeTransactionNotifications.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Large transaction notifications updated from Firebase');
+                localStorage.setItem('memeCoinLargeTransactionNotifications', JSON.stringify(data));
+                this.onLargeTransactionNotificationsChanged(data);
+            }
+        });
+
+        // Listen for success addresses changes
+        this.firebaseRefs.successAddresses.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Success addresses updated from Firebase');
+                localStorage.setItem('memeCoinSuccessAddresses', JSON.stringify(data));
+                this.onSuccessAddressesChanged(data);
+            }
+        });
+
+        // Listen for last signature changes
+        this.firebaseRefs.lastSignature.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Last signature updated from Firebase');
+                localStorage.setItem('memeCoinLastSignature', JSON.stringify(data));
+                this.onLastSignatureChanged(data);
+            }
+        });
+
+        // Listen for token holders changes
+        this.firebaseRefs.tokenHolders.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Token holders updated from Firebase');
+                localStorage.setItem('memeCoinTokenHolders', JSON.stringify(data));
+                this.onTokenHoldersChanged(data);
+            }
+        });
+
+        // Listen for holders snapshots changes
+        this.firebaseRefs.holdersSnapshots.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Holders snapshots updated from Firebase');
+                localStorage.setItem('memeCoinHoldersSnapshots', JSON.stringify(data));
+                this.onHoldersSnapshotsChanged(data);
             }
         });
     }
 
-    // Refresh Detection Status
-    refreshDetectionStatus() {
-        this.updateDetectionStatus();
-        this.log('Detection status refreshed', 'info');
+    onConfigChanged() {
+        // Trigger UI updates or other actions when config changes
+        const event = new CustomEvent('adminConfigChanged', { detail: this.config });
+        document.dispatchEvent(event);
     }
 
-    // Update Detection Status
-    updateDetectionStatus() {
-        const detectionConfig = localStorage.getItem('memeCoinDetection');
-        const startDetectionBtn = document.getElementById('startDetectionBtn');
-        const stopDetectionBtn = document.getElementById('stopDetectionBtn');
-        const detectionStatusText = document.getElementById('detectionStatusText');
-        const detectionStatusDot = document.getElementById('detectionStatusDot');
+    onDetectionChanged(detectionData) {
+        // Trigger detection control updates
+        const event = new CustomEvent('detectionControlChanged', { detail: detectionData });
+        document.dispatchEvent(event);
+    }
 
-        if (detectionConfig) {
-            try {
-                const config = JSON.parse(detectionConfig);
+    onCountdownChanged(countdownData) {
+        // Trigger countdown updates
+        const event = new CustomEvent('countdownChanged', { detail: countdownData });
+        document.dispatchEvent(event);
+    }
+
+    onRewardCountdownChanged(countdownData) {
+        // Trigger reward countdown updates
+        const event = new CustomEvent('rewardCountdownChanged', { detail: countdownData });
+        document.dispatchEvent(event);
+    }
+
+    onBackendTransactionsChanged(transactionsData) {
+        // Trigger backend transactions updates
+        const event = new CustomEvent('backendTransactionsChanged', { detail: transactionsData });
+        document.dispatchEvent(event);
+    }
+
+    onLargeTransactionNotificationsChanged(notificationsData) {
+        // Trigger large transaction notifications updates
+        const event = new CustomEvent('largeTransactionNotificationsChanged', { detail: notificationsData });
+        document.dispatchEvent(event);
+    }
+
+    onSuccessAddressesChanged(addressesData) {
+        // Trigger success addresses updates
+        const event = new CustomEvent('successAddressesChanged', { detail: addressesData });
+        document.dispatchEvent(event);
+    }
+
+    onLastSignatureChanged(signatureData) {
+        // Trigger last signature updates
+        const event = new CustomEvent('lastSignatureChanged', { detail: signatureData });
+        document.dispatchEvent(event);
+    }
+
+    onTokenHoldersChanged(holdersData) {
+        // Trigger token holders updates
+        const event = new CustomEvent('tokenHoldersChanged', { detail: holdersData });
+        document.dispatchEvent(event);
+    }
+
+    onHoldersSnapshotsChanged(snapshotsData) {
+        // Trigger holders snapshots updates
+        const event = new CustomEvent('holdersSnapshotsChanged', { detail: snapshotsData });
+        document.dispatchEvent(event);
+    }
+
+    getConfig() {
+        return this.config;
+    }
+
+    saveConfig() {
+        try {
+            this.config.system.lastUpdate = new Date().toISOString();
+            
+            // Save to localStorage
+            localStorage.setItem('memeCoinAdminConfig', JSON.stringify(this.config));
+            
+            // Save to Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.adminConfig.set(this.config);
+                console.log('Config saved to Firebase');
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Failed to save backend config:', error);
+            return false;
+        }
+    }
+
+    // Synchronization
+    startSync() {
+        this.syncInterval = setInterval(() => {
+            this.syncWithBackend();
+        }, 5000); // Sync every 5 seconds
+    }
+
+    syncWithBackend() {
+        try {
+            const adminConfig = localStorage.getItem('memeCoinAdminConfig');
+            if (adminConfig) {
+                const backendConfig = JSON.parse(adminConfig);
                 
-                if (config.isRunning) {
-                    // Detection is running
-                    if (startDetectionBtn) startDetectionBtn.disabled = true;
-                    if (stopDetectionBtn) stopDetectionBtn.disabled = false;
-                    if (detectionStatusText) detectionStatusText.textContent = 'Running';
-                    if (detectionStatusDot) {
-                        detectionStatusDot.className = 'status-dot connected';
-                    }
-                } else {
-                    // Detection is stopped
-                    if (startDetectionBtn) startDetectionBtn.disabled = false;
-                    if (stopDetectionBtn) stopDetectionBtn.disabled = true;
-                    if (detectionStatusText) detectionStatusText.textContent = 'Stopped';
-                    if (detectionStatusDot) {
-                        detectionStatusDot.className = 'status-dot disconnected';
-                    }
-                }
-
-                // Update status display
-                this.updateDetectionStatusDisplay(config);
-            } catch (error) {
-                console.error('Failed to parse detection config:', error);
-            }
-        } else {
-            // No detection configuration
-            if (startDetectionBtn) startDetectionBtn.disabled = false;
-            if (stopDetectionBtn) stopDetectionBtn.disabled = true;
-            if (detectionStatusText) detectionStatusText.textContent = 'Not Started';
-            if (detectionStatusDot) {
-                detectionStatusDot.className = 'status-dot disconnected';
-            }
-            this.updateDetectionStatusDisplay(null);
-        }
-    }
-
-    // Update detection status display
-    updateDetectionStatusDisplay(config) {
-        // RPC connection status
-        const rpcConnectionStatus = document.getElementById('rpcConnectionStatus');
-        const rpcConnectionIcon = document.querySelector('#detectionStatusDisplay .status-item:nth-child(1) i');
-        
-        if (this.config.rpc.connected) {
-            if (rpcConnectionStatus) rpcConnectionStatus.textContent = 'Connected';
-            if (rpcConnectionIcon) rpcConnectionIcon.className = 'fa fa-circle connected';
-        } else {
-            if (rpcConnectionStatus) rpcConnectionStatus.textContent = 'Not Connected';
-            if (rpcConnectionIcon) rpcConnectionIcon.className = 'fa fa-circle disconnected';
-        }
-
-        // Token address status
-        const tokenAddressStatus = document.getElementById('tokenAddressStatus');
-        const tokenAddressIcon = document.querySelector('#detectionStatusDisplay .status-item:nth-child(2) i');
-        
-        if (this.config.token.validated) {
-            if (tokenAddressStatus) tokenAddressStatus.textContent = 'Set';
-            if (tokenAddressIcon) tokenAddressIcon.className = 'fa fa-circle connected';
-        } else {
-            if (tokenAddressStatus) tokenAddressStatus.textContent = 'Not Set';
-            if (tokenAddressIcon) tokenAddressIcon.className = 'fa fa-circle disconnected';
-        }
-
-        // Detection running status
-        const detectionRunningStatus = document.getElementById('detectionRunningStatus');
-        const detectionRunningIcon = document.querySelector('#detectionStatusDisplay .status-item:nth-child(3) i');
-        
-        if (config && config.isRunning) {
-            if (detectionRunningStatus) detectionRunningStatus.textContent = 'Running';
-            if (detectionRunningIcon) detectionRunningIcon.className = 'fa fa-circle connected';
-        } else {
-            if (detectionRunningStatus) detectionRunningStatus.textContent = 'Not Started';
-            if (detectionRunningIcon) detectionRunningIcon.className = 'fa fa-circle disconnected';
-        }
-
-        // Update statistics
-        this.updateDetectionStats(config);
-    }
-
-    // Update detection statistics
-    updateDetectionStats(config) {
-        const statsDisplay = document.getElementById('detectionStats');
-        if (!statsDisplay) return;
-
-        // Get frontend and backend transaction data
-        const frontendData = localStorage.getItem('memeCoinTransactions');
-        const backendData = localStorage.getItem('memeCoinBackendTransactions');
-        
-        let frontendTransactions = [];
-        let backendTransactions = [];
-        
-        try {
-            if (frontendData) {
-                const parsed = JSON.parse(frontendData);
-                frontendTransactions = parsed.transactions || [];
-            }
-            if (backendData) {
-                const parsed = JSON.parse(backendData);
-                backendTransactions = parsed.transactions || [];
-            }
-        } catch (error) {
-            console.error('Failed to parse transaction data:', error);
-        }
-
-        const totalCount = backendTransactions.length;
-        const lastUpdate = config?.lastUpdate ? new Date(config.lastUpdate).toLocaleString() : 'Unknown';
-        const lastUpload = backendData ? (() => {
-            try {
-                const parsed = JSON.parse(backendData);
-                return parsed.lastUpload ? new Date(parsed.lastUpload).toLocaleString() : 'Unknown';
-            } catch {
-                return 'Unknown';
-            }
-        })() : 'Unknown';
-
-        statsDisplay.innerHTML = `
-            <div class="stat-item">
-                <span class="stat-label">Frontend Records:</span>
-                <span class="stat-value">${frontendTransactions.length}</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">Backend Records:</span>
-                <span class="stat-value">${backendTransactions.length}/100</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">Last Update:</span>
-                <span class="stat-value">${lastUpdate}</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">Last Upload:</span>
-                <span class="stat-value">${lastUpload}</span>
-            </div>
-        `;
-    }
-
-    // Check global countdown status
-    checkGlobalCountdown() {
-        const globalCountdown = localStorage.getItem('memeCoinCountdown');
-        if (globalCountdown) {
-            try {
-                const data = JSON.parse(globalCountdown);
-                const targetDate = new Date(data.targetDate);
-                const now = new Date();
+                // Update local config with backend changes
+                this.updateConfigFromBackend(backendConfig);
                 
-                if (targetDate > now) {
-                    // Countdown is still running
-                    const remainingTime = targetDate - now;
-                    const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
-                    const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
-                    
-                    // Update interface to show remaining time
-                    const countdownMinutesInput = document.getElementById('countdownMinutes');
-                    if (countdownMinutesInput) {
-                        countdownMinutesInput.value = remainingMinutes;
-                    }
-                    
-                    // Update backend configuration to maintain synchronization
-                    this.config.countdown.minutes = remainingMinutes;
-                    this.config.countdown.seconds = remainingSeconds;
-                    this.config.countdown.lastUpdate = data.lastUpdate;
-                    
-                    this.log(`Global countdown detected running, remaining ${remainingMinutes}m ${remainingSeconds}s`, 'info');
-                } else {
-                    // Countdown has ended
-                    this.log('Global countdown has ended', 'warning');
-                }
-            } catch (error) {
-                console.error('Failed to check global countdown:', error);
-            }
-        }
-    }
-
-    // Test RPC connection
-    async testRpcConnection() {
-        const rpcUrl = document.getElementById('rpcUrl').value.trim();
-        if (!rpcUrl) {
-            this.showModal('Error', 'Please enter RPC URL');
-            return;
-        }
-
-        this.setLoadingState('testRpcBtn', true);
-        this.updateRpcStatus('connecting', 'Connecting...');
-
-        try {
-            // Simulate RPC connection test
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Here should actually test RPC connection
-            const isValid = rpcUrl.includes('quiknode.pro');
-            
-            if (isValid) {
-                this.config.rpc.connected = true;
-                this.config.rpc.lastTest = new Date().toISOString();
-                this.updateRpcStatus('connected', 'Connected');
-                this.log('RPC connection test successful', 'success');
-            } else {
-                throw new Error('Invalid RPC URL');
+                // Save any local changes back to backend
+                this.saveConfig();
             }
         } catch (error) {
-            this.config.rpc.connected = false;
-            this.updateRpcStatus('disconnected', 'Connection Failed');
-            this.log(`RPC connection test failed: ${error.message}`, 'error');
-        } finally {
-            this.setLoadingState('testRpcBtn', false);
+            console.error('Failed to sync with backend:', error);
         }
     }
 
-    // Save RPC configuration
-    saveRpcConfig() {
-        const rpcUrl = document.getElementById('rpcUrl').value.trim();
-        if (!rpcUrl) {
-            this.showModal('Error', 'Please enter RPC URL');
-            return;
+    updateConfigFromBackend(backendConfig) {
+        // Update RPC configuration
+        if (backendConfig.rpc) {
+            this.config.rpc = { ...this.config.rpc, ...backendConfig.rpc };
         }
 
-        this.config.rpc.url = rpcUrl;
+        // Update token configuration
+        if (backendConfig.token) {
+            this.config.token = { ...this.config.token, ...backendConfig.token };
+        }
+
+        // Update countdown configuration
+        if (backendConfig.countdown) {
+            this.config.countdown = { ...this.config.countdown, ...backendConfig.countdown };
+        }
+
+        // Update reward countdown configuration
+        if (backendConfig.rewardCountdown) {
+            this.config.rewardCountdown = { ...this.config.rewardCountdown, ...backendConfig.rewardCountdown };
+        }
+
+        // Update detection configuration
+        if (backendConfig.detection) {
+            this.config.detection = { ...this.config.detection, ...backendConfig.detection };
+        }
+    }
+
+    // RPC Management
+    updateRPCConfig(url, connected = false) {
+        this.config.rpc.url = url;
+        this.config.rpc.connected = connected;
+        this.config.rpc.lastTest = new Date().toISOString();
         this.saveConfig();
-        this.log('RPC configuration saved', 'success');
     }
 
-    // Validate token address
-    async validateTokenAddress() {
-        const tokenAddress = document.getElementById('tokenAddress').value.trim();
-        if (!tokenAddress) {
-            this.showModal('Error', 'Please enter token address');
-            return;
-        }
-
-        this.setLoadingState('validateTokenBtn', true);
-        this.updateTokenStatus('validating', 'Validating...');
-
-        try {
-            // Simulate token address validation
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            // Here should actually validate Solana token address
-            const isValid = tokenAddress.length === 44 && /^[A-Za-z0-9]+$/.test(tokenAddress);
-            
-            if (isValid) {
-                this.config.token.validated = true;
-                this.updateTokenStatus('validated', 'Validated');
-                this.log('Token address validation successful', 'success');
-            } else {
-                throw new Error('Invalid token address format');
-            }
-        } catch (error) {
-            this.config.token.validated = false;
-            this.updateTokenStatus('invalid', 'Validation Failed');
-            this.log(`Token address validation failed: ${error.message}`, 'error');
-        } finally {
-            this.setLoadingState('validateTokenBtn', false);
-        }
+    getRPCConfig() {
+        return this.config.rpc;
     }
 
-    // Save token configuration
-    saveTokenConfig() {
-        const tokenAddress = document.getElementById('tokenAddress').value.trim();
-        const tokenName = document.getElementById('tokenName').value.trim();
-        
-        if (!tokenAddress) {
-            this.showModal('Error', 'Please enter token address');
-            return;
-        }
-
-        this.config.token.address = tokenAddress;
-        this.config.token.name = tokenName;
+    // Token Management
+    updateTokenConfig(address, name, validated = false) {
+        this.config.token.address = address;
+        this.config.token.name = name;
+        this.config.token.validated = validated;
         this.saveConfig();
-        this.log('Token configuration saved', 'success');
     }
 
-    // Reset countdown
-    resetCountdown() {
-        console.log('Reset countdown method called');
-        
-        try {
-            // Check if DOM elements exist
-            const countdownMinutesInput = document.getElementById('countdownMinutes');
-            if (!countdownMinutesInput) {
-                console.error('countdownMinutes input not found');
-                this.log('Error: Countdown minutes input not found', 'error');
-                return;
-            }
-
-            this.showModal('Confirm Reset', 'Are you sure you want to reset the countdown? This will restart the global countdown and all online users will be synchronized.', () => {
-                try {
-                    console.log('Reset countdown confirmed');
-                    
-                    // Create new countdown time
-                    const minutes = parseInt(countdownMinutesInput.value) || 5;
-                    
-                    // Use Firebase real-time sync (if available)
-                    if (window.globalCountdownManager) {
-                        this.log('Using Firebase real-time sync to reset countdown...', 'info');
-                        window.globalCountdownManager.resetCountdown(minutes).then((success) => {
-                            if (success) {
-                                this.log(`Countdown reset to ${minutes} minutes, all users synchronized`, 'success');
-                            } else {
-                                this.log('Firebase sync failed, using local storage', 'warning');
-                                this.resetCountdownLocal(minutes);
-                            }
-                        });
-                    } else {
-                        // Fallback to local storage
-                        this.log('Firebase not available, using local storage', 'info');
-                        this.resetCountdownLocal(minutes).then(() => {
-                            this.log('Local reset completed', 'success');
-                        }).catch((error) => {
-                            this.log('Local reset failed: ' + error.message, 'error');
-                        });
-                    }
-                    
-                } catch (error) {
-                    console.error('Error in reset countdown callback:', error);
-                    this.log(`Error occurred while resetting countdown: ${error.message}`, 'error');
-                }
-            });
-        } catch (error) {
-            console.error('Error in resetCountdown method:', error);
-            this.log(`Reset countdown method error: ${error.message}`, 'error');
-        }
+    getTokenConfig() {
+        return this.config.token;
     }
 
-    // Local storage reset countdown (fallback solution)
-    async resetCountdownLocal(minutes) {
-        try {
-            const now = new Date();
-            const newTargetDate = new Date(now.getTime() + minutes * 60 * 1000);
-            
-            console.log('New countdown data:', {
-                minutes: minutes,
-                targetDate: newTargetDate.toISOString(),
-                currentTime: now.toISOString()
-            });
-            
-            // Save to global countdown storage
-            const countdownData = {
-                targetDate: newTargetDate.toISOString(),
-                lastUpdate: new Date().toISOString(),
-                resetBy: 'admin-panel-local',
-                version: '2.0'
-            };
-            
-            // Prioritize Firebase, fallback to localStorage
-            if (typeof firebase !== 'undefined' && firebase.database) {
-                try {
-                    const countdownRef = firebase.database().ref('countdown');
-                    await countdownRef.set(countdownData);
-                    console.log('Countdown data saved to Firebase');
-                    this.log(`Countdown reset to ${minutes} minutes (Firebase sync)`, 'success');
-                } catch (firebaseError) {
-                    console.error('Failed to save to Firebase:', firebaseError);
-                    this.log('Firebase save failed, using localStorage', 'warning');
-                    
-                    // Fallback to localStorage
-                    try {
-                        localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
-                        console.log('Countdown data saved to localStorage');
-                    } catch (storageError) {
-                        console.error('Failed to save to localStorage:', storageError);
-                        this.log('Warning: Unable to save to localStorage, but countdown will still reset', 'warning');
-                    }
-                }
-            } else {
-                // Use localStorage directly
-                try {
-                    localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
-                    console.log('Countdown data saved to localStorage');
-                } catch (storageError) {
-                    console.error('Failed to save to localStorage:', storageError);
-                    this.log('Warning: Unable to save to localStorage, but countdown will still reset', 'warning');
-                }
-            }
-            
-            // Update backend configuration
-            this.config.countdown.minutes = minutes;
-            this.config.countdown.lastUpdate = new Date().toISOString();
-            this.saveConfig();
-            
-            // Verify save was successful
-            const savedData = localStorage.getItem('memeCoinCountdown');
-            if (savedData) {
-                const parsed = JSON.parse(savedData);
-                console.log('Verified saved data:', parsed);
-            }
-            
-            // Trigger custom event to notify frontend page
-            window.dispatchEvent(new CustomEvent('countdownReset', {
-                detail: countdownData
-            }));
-            
-        } catch (error) {
-            console.error('Error in resetCountdownLocal:', error);
-            this.log(`Error occurred while resetting countdown locally: ${error.message}`, 'error');
-        }
-    }
-
-    // Save countdown configuration
-    async saveCountdownConfig() {
-        const minutes = parseInt(document.getElementById('countdownMinutes').value);
-        const message = document.getElementById('countdownMessage').value.trim();
-        
-        if (minutes < 1 || minutes > 1440) {
-            this.showModal('Error', 'Countdown minutes must be between 1-1440');
-            return;
-        }
-
+    // Countdown Management
+    updateCountdownConfig(minutes, seconds = 0, message = null) {
         this.config.countdown.minutes = minutes;
-        this.config.countdown.message = message;
+        this.config.countdown.seconds = seconds;
+        if (message) {
+            this.config.countdown.message = message;
+        }
         this.config.countdown.lastUpdate = new Date().toISOString();
         this.saveConfig();
-        
-        // If there's currently a countdown running, update it
-        const currentCountdown = localStorage.getItem('memeCoinCountdown');
-        if (currentCountdown) {
-            try {
-                const data = JSON.parse(currentCountdown);
-                const targetDate = new Date(data.targetDate);
-                const now = new Date();
-                
-                // If countdown hasn't ended, update remaining time
-                if (targetDate > now) {
-                    const remainingTime = targetDate - now;
-                    const newTargetDate = new Date(now.getTime() + remainingTime);
-                    
-                    const countdownData = {
-                        targetDate: newTargetDate.toISOString(),
-                        lastUpdate: new Date().toISOString(),
-                        message: message,
-                        version: '2.0'
-                    };
-                    
-                    // Prioritize Firebase, fallback to localStorage
-                    if (typeof firebase !== 'undefined' && firebase.database) {
-                        try {
-                            const countdownRef = firebase.database().ref('countdown');
-                            await countdownRef.set(countdownData);
-                            console.log('Countdown config updated via Firebase');
-                        } catch (firebaseError) {
-                            console.error('Failed to update via Firebase:', firebaseError);
-                            localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
-                        }
-                    } else {
-                        localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to update countdown:', error);
-            }
-        }
-        
-        this.log('Countdown configuration saved', 'success');
     }
 
-    // Reset holding countdown
-    resetRewardCountdown() {
-        const minutes = parseInt(document.getElementById('rewardCountdownMinutes').value);
-        
-        if (minutes < 1 || minutes > 1440) {
-            this.showModal('Error', 'Holding countdown minutes must be between 1-1440');
-            return;
-        }
-
-        this.showModal('Confirm Reset', `Are you sure you want to reset the holding countdown to ${minutes} minutes?`, () => {
-            // Update backend configuration
-                    // Set global holding countdown storage (primary method)
-        const now = new Date();
-        const targetDate = new Date(now.getTime() + (minutes * 60) * 1000);
-        
-        const rewardCountdownData = {
-            targetDate: targetDate.toISOString(),
-            lastUpdate: new Date().toISOString()
-        };
-        localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(rewardCountdownData));
-        
-        // Also update backend configuration (backup)
-        this.config.rewardCountdown.minutes = minutes;
-        this.config.rewardCountdown.seconds = 0;
-        this.config.rewardCountdown.lastUpdate = new Date().toISOString();
-            this.saveConfig();
-            
-            this.log(`Holding countdown reset to ${minutes} minutes`, 'success');
-        });
+    getCountdownConfig() {
+        return this.config.countdown;
     }
 
-    // Save holding countdown configuration
-    saveRewardCountdownConfig() {
-        const minutes = parseInt(document.getElementById('rewardCountdownMinutes').value);
-        const seconds = parseInt(document.getElementById('rewardCountdownSeconds').value);
-        
-        if (minutes < 1 || minutes > 1440) {
-            this.showModal('Error', 'Holding countdown minutes must be between 1-1440');
-            return;
-        }
-
-        if (seconds < 0 || seconds > 59) {
-            this.showModal('Error', 'Holding countdown seconds must be between 0-59');
-            return;
-        }
-
-        // Set global holding countdown storage (primary method)
-        const now = new Date();
-        const targetDate = new Date(now.getTime() + (minutes * 60 + seconds) * 1000);
-        
-        const rewardCountdownData = {
-            targetDate: targetDate.toISOString(),
-            lastUpdate: new Date().toISOString()
-        };
-        localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(rewardCountdownData));
-        
-        // Also update backend configuration (backup)
+    // Reward Countdown Management
+    updateRewardCountdownConfig(minutes, seconds = 0) {
         this.config.rewardCountdown.minutes = minutes;
         this.config.rewardCountdown.seconds = seconds;
         this.config.rewardCountdown.lastUpdate = new Date().toISOString();
         this.saveConfig();
-        
-        this.log('Holding countdown configuration saved', 'success');
     }
 
-    // Save all configurations
-    async saveAllConfig() {
-        try {
-            this.saveRpcConfig();
-            this.saveTokenConfig();
-            await this.saveCountdownConfig();
-            this.saveRewardCountdownConfig();
-            this.showModal('Success', 'All configurations saved');
-        } catch (error) {
-            console.error('Error occurred while saving configuration:', error);
-            this.log('Error occurred while saving configuration: ' + error.message, 'error');
-            this.showModal('Error', 'Error occurred while saving configuration: ' + error.message);
-        }
+    getRewardCountdownConfig() {
+        return this.config.rewardCountdown;
     }
 
-    // Refresh status
-    refreshStatus() {
-        this.updateSystemStatus();
-        this.log('System status refreshed', 'info');
-    }
-
-    // Clear cache
-    clearCache() {
-        this.showModal('Confirm Clear', 'Are you sure you want to clear all cache? This will clear all locally stored data.', () => {
-            localStorage.clear();
-            this.log('Cache cleared', 'warning');
-            this.config = this.loadConfig();
-            this.loadSavedConfig();
-        });
-    }
-
-    // Export configuration
-    exportConfig() {
-        const configData = {
-            ...this.config,
-            exportTime: new Date().toISOString(),
-            version: ADMIN_CONFIG.version
-        };
-        
-        const blob = new Blob([JSON.stringify(configData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `meme-coin-config-${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-        this.log('Configuration exported', 'success');
-    }
-
-    // Clear log
-    clearLog() {
-        const logContent = document.getElementById('systemLog');
-        if (logContent) {
-            logContent.innerHTML = '<div class="log-entry info"><span class="log-time">[System]</span><span class="log-message">Log cleared</span></div>';
-        }
-    }
-
-    // Export log
-    exportLog() {
-        const logContent = document.getElementById('systemLog');
-        if (logContent) {
-            const logText = logContent.innerText;
-            const blob = new Blob([logText], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `meme-coin-log-${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-    }
-
-    // View transaction records
-    viewTransactions() {
-        const backendData = localStorage.getItem('memeCoinBackendTransactions');
-        if (!backendData) {
-            this.showModal('Notice', 'No transaction records to view');
-            return;
-        }
-
-        try {
-            const data = JSON.parse(backendData);
-            const transactions = data.transactions || [];
-            
-            if (transactions.length === 0) {
-                this.showModal('Notice', 'No transaction records');
-                return;
-            }
-
-            // Create transaction record display window
-            this.showTransactionModal(transactions);
-            
-        } catch (error) {
-            console.error('Failed to parse transaction records:', error);
-            this.showModal('Error', 'Failed to parse transaction records');
-        }
-    }
-
-    // Show transaction record modal
-    showTransactionModal(transactions) {
-        const modal = document.getElementById('transactionModal');
-        const modalContent = document.getElementById('transactionModalContent');
-        
-        if (!modal || !modalContent) {
-            this.showModal('Error', 'Transaction record display component not found');
-            return;
-        }
-
-        // Generate transaction record table
-        const tableHTML = this.generateTransactionTable(transactions);
-        modalContent.innerHTML = tableHTML;
-        
-        // Show modal
-        modal.style.display = 'flex';
-        
-        // Add close event
-        const closeBtn = modal.querySelector('.modal-close');
-        if (closeBtn) {
-            closeBtn.onclick = () => modal.style.display = 'none';
-        }
-    }
-
-    // Generate transaction record table
-    generateTransactionTable(transactions) {
-        const tableRows = transactions.map((tx, index) => `
-            <tr>
-                <td>${index + 1}</td>
-                <td>${tx.signature.substring(0, 8)}...</td>
-                <td>${tx.trader}</td>
-                <td>${tx.amount}</td>
-                <td>${tx.type}</td>
-                <td>${tx.status === 'success' ? '✅' : '❌'}</td>
-                <td>${tx.timestamp}</td>
-            </tr>
-        `).join('');
-
-        return `
-            <div class="modal-header">
-                <h3>Transaction Records (Total: ${transactions.length})</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <table class="transaction-table">
-                    <thead>
-                        <tr>
-                            <th>No.</th>
-                            <th>Signature</th>
-                            <th>Trader</th>
-                            <th>Amount</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${tableRows}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    // Clear transaction records
-    clearTransactions() {
-        this.showModal('Confirm', 'Are you sure you want to clear all transaction records? This action cannot be undone.', () => {
-            try {
-                localStorage.removeItem('memeCoinBackendTransactions');
-                localStorage.removeItem('memeCoinTransactions');
-                this.log('Transaction records cleared', 'warning');
-                this.refreshDetectionStatus();
-                this.showModal('Success', 'Transaction records cleared');
-            } catch (error) {
-                console.error('Failed to clear transaction records:', error);
-                this.showModal('Error', 'Failed to clear transaction records');
-            }
-        });
-    }
-
-    // Export transaction records
-    exportTransactions() {
-        const backendData = localStorage.getItem('memeCoinBackendTransactions');
-        if (!backendData) {
-            this.showModal('Notice', 'No transaction records to export');
-            return;
-        }
-
-        try {
-            const data = JSON.parse(backendData);
-            const transactions = data.transactions || [];
-            
-            if (transactions.length === 0) {
-                this.showModal('Notice', 'No transaction records');
-                return;
-            }
-
-            // Generate CSV format
-            const csvContent = this.generateTransactionCSV(transactions);
-            const filename = `transactions_${new Date().toISOString().split('T')[0]}.csv`;
-            
-            this.downloadFile(filename, csvContent);
-            this.log('Transaction records exported', 'success');
-            
-        } catch (error) {
-            console.error('Failed to export transaction records:', error);
-            this.showModal('Error', 'Failed to export transaction records');
-        }
-    }
-
-    // Generate transaction record CSV
-    generateTransactionCSV(transactions) {
-        const headers = ['No.', 'Signature', 'Trader', 'Amount', 'Type', 'Status', 'Time', 'Processed Time'];
-        const rows = transactions.map((tx, index) => [
-            index + 1,
-            tx.signature,
-            tx.trader,
-            tx.amount,
-            tx.type,
-            tx.status,
-            tx.timestamp,
-            tx.processedAt ? new Date(tx.processedAt).toLocaleString() : 'Unknown'
-        ]);
-
-        const csvContent = [headers, ...rows]
-            .map(row => row.map(cell => `"${cell}"`).join(','))
-            .join('\n');
-
-        return '\ufeff' + csvContent; // Add BOM for UTF-8 support
-    }
-
-    // Download file
-    downloadFile(filename, content) {
-        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    // Update status indicators
-    updateStatusIndicators() {
-        // RPC status
-        if (this.config.rpc.connected) {
-            this.updateRpcStatus('connected', 'Connected');
+    // Detection Management
+    updateDetectionConfig(isRunning, rpcUrl = null, tokenAddress = null) {
+        this.config.detection.isRunning = isRunning;
+        if (isRunning) {
+            this.config.detection.startTime = new Date().toISOString();
         } else {
-            this.updateRpcStatus('disconnected', 'Not Connected');
+            this.config.detection.startTime = null;
         }
+        this.config.detection.lastUpdate = new Date().toISOString();
+        this.saveConfig();
 
-        // Token status
-        if (this.config.token.validated) {
-            this.updateTokenStatus('validated', 'Validated');
-        } else {
-            this.updateTokenStatus('invalid', 'Not Validated');
-        }
-
-        // Countdown status
-        this.updateCountdownStatus('running', 'Running');
-        
-        // Update other status indicators
-        this.updateHoldersSnapshotStats();
-        this.updateLargeTransactionStats();
-        this.updateSuccessAddressStats();
-        this.updateRewardDataStats();
-    }
-
-    // Update RPC status
-    updateRpcStatus(status, text) {
-        const statusDot = document.getElementById('rpcStatusDot');
-        const statusText = document.getElementById('rpcStatusText');
-        
-        if (statusDot) {
-            statusDot.className = 'status-dot';
-            if (status === 'connected') statusDot.classList.add('connected');
-            else if (status === 'connecting') statusDot.classList.add('warning');
-            else statusDot.classList.add('disconnected');
-        }
-        
-        if (statusText) {
-            statusText.textContent = text;
+        // Also update detection control
+        if (isRunning && rpcUrl && tokenAddress) {
+            this.setDetectionControl(isRunning, rpcUrl, tokenAddress);
+        } else if (!isRunning) {
+            this.clearDetectionControl();
         }
     }
 
-    // Update token status
-    updateTokenStatus(status, text) {
-        const statusDot = document.getElementById('tokenStatusDot');
-        const statusText = document.getElementById('tokenStatusText');
-        
-        if (statusDot) {
-            statusDot.className = 'status-dot';
-            if (status === 'validated') statusDot.classList.add('connected');
-            else if (status === 'validating') statusDot.classList.add('warning');
-            else statusDot.classList.add('disconnected');
-        }
-        
-        if (statusText) {
-            statusText.textContent = text;
+    getDetectionConfig() {
+        return this.config.detection;
+    }
+
+    // Detection Control
+    setDetectionControl(isRunning, rpcUrl, tokenAddress) {
+        try {
+            const detectionConfig = {
+                isRunning: isRunning,
+                rpcUrl: rpcUrl,
+                tokenAddress: tokenAddress,
+                startTime: new Date().toISOString(),
+                lastUpdate: new Date().toISOString()
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('memeCoinDetection', JSON.stringify(detectionConfig));
+            
+            // Save to Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.detection.set(detectionConfig);
+                console.log('Detection control saved to Firebase');
+            }
+        } catch (error) {
+            console.error('Failed to set detection control:', error);
         }
     }
 
-    // Update countdown status
-    updateCountdownStatus(status, text) {
-        const statusDot = document.getElementById('countdownStatusDot');
-        const statusText = document.getElementById('countdownStatusText');
-        
-        if (statusDot) {
-            statusDot.className = 'status-dot';
-            if (status === 'running') statusDot.classList.add('connected');
-            else statusDot.classList.add('warning');
-        }
-        
-        if (statusText) {
-            statusText.textContent = text;
+    clearDetectionControl() {
+        try {
+            localStorage.removeItem('memeCoinDetection');
+            
+            // Clear from Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.detection.remove();
+                console.log('Detection control cleared from Firebase');
+            }
+        } catch (error) {
+            console.error('Failed to clear detection control:', error);
         }
     }
 
-    // Update holding countdown status
-    updateRewardCountdownStatus() {
-        const statusDot = document.getElementById('rewardCountdownStatusDot');
-        const statusText = document.getElementById('rewardCountdownStatusText');
-        const remainingTime = document.getElementById('rewardCountdownRemaining');
-        const lastUpdate = document.getElementById('rewardCountdownLastUpdate');
-        
-        if (statusDot) {
-            statusDot.className = 'status-dot connected';
-        }
-        
-        if (statusText) {
-            statusText.textContent = 'Running';
-        }
-        
-        if (remainingTime) {
-            const minutes = this.config.rewardCountdown.minutes;
-            const seconds = this.config.rewardCountdown.seconds;
-            remainingTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-        
-        if (lastUpdate) {
-            const updateTime = new Date(this.config.rewardCountdown.lastUpdate);
-            lastUpdate.textContent = updateTime.toLocaleString();
+    getDetectionControl() {
+        try {
+            const detectionConfig = localStorage.getItem('memeCoinDetection');
+            return detectionConfig ? JSON.parse(detectionConfig) : null;
+        } catch (error) {
+            console.error('Failed to get detection control:', error);
+            return null;
         }
     }
 
-    // Update system status
+    // Transaction Management
+    getBackendTransactions() {
+        try {
+            const backendData = localStorage.getItem('memeCoinBackendTransactions');
+            if (backendData) {
+                const data = JSON.parse(backendData);
+                return data.transactions || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('Failed to get backend transactions:', error);
+            return [];
+        }
+    }
+
+    addBackendTransaction(transactionData) {
+        try {
+            const backendData = localStorage.getItem('memeCoinBackendTransactions');
+            let data = backendData ? JSON.parse(backendData) : { transactions: [] };
+            
+            // Check for duplicates
+            const isDuplicate = data.transactions.some(tx => tx.signature === transactionData.signature);
+            if (isDuplicate) {
+                return false;
+            }
+
+            data.transactions.unshift(transactionData);
+            
+            // Keep only the latest 100 transactions
+            const maxTransactions = 100;
+            if (data.transactions.length > maxTransactions) {
+                data.transactions = data.transactions.slice(0, maxTransactions);
+            }
+
+            data.lastUpdate = new Date().toISOString();
+            localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
+            return true;
+        } catch (error) {
+            console.error('Failed to add backend transaction:', error);
+            return false;
+        }
+    }
+
+    clearBackendTransactions() {
+        try {
+            localStorage.removeItem('memeCoinBackendTransactions');
+            return true;
+        } catch (error) {
+            console.error('Failed to clear backend transactions:', error);
+            return false;
+        }
+    }
+
+    // System Status
     updateSystemStatus() {
-        const lastUpdateTime = document.getElementById('lastUpdateTime');
-        const uptime = document.getElementById('uptime');
-        const footerUpdateTime = document.getElementById('footerUpdateTime');
-        
-        if (lastUpdateTime) {
-            lastUpdateTime.textContent = new Date(this.config.system.lastUpdate).toLocaleString();
-        }
-        
-        if (uptime) {
+        this.config.system.lastUpdate = new Date().toISOString();
+        this.saveConfig();
+    }
+
+    getSystemStatus() {
+        return {
+            ...this.config.system,
+            uptime: this.calculateUptime()
+        };
+    }
+
+    calculateUptime() {
+        try {
             const startTime = new Date(this.config.system.uptime);
             const now = new Date();
             const diff = now - startTime;
-            const hours = Math.floor(diff / (1000 * 60 * 60));
+            
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            uptime.textContent = `${hours}h ${minutes}m`;
-        }
-        
-        if (footerUpdateTime) {
-            footerUpdateTime.textContent = new Date().toLocaleString();
-        }
-
-        // Update countdown status
-        this.updateCountdownStatus();
-        
-        // Update holding countdown status
-        this.updateRewardCountdownStatus();
-    }
-
-    // Update countdown status
-    updateCountdownStatus() {
-        const globalCountdown = localStorage.getItem('memeCoinCountdown');
-        const countdownStatusText = document.getElementById('countdownStatusText');
-        const countdownStatusDot = document.getElementById('countdownStatusDot');
-        
-        if (globalCountdown) {
-            try {
-                const data = JSON.parse(globalCountdown);
-                const targetDate = new Date(data.targetDate);
-                const now = new Date();
-                
-                if (targetDate > now) {
-                    // Countdown is still running
-                    const remainingTime = targetDate - now;
-                    const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
-                    const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
-                    
-                    if (countdownStatusText) {
-                        countdownStatusText.textContent = `Running (${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')})`;
-                    }
-                    
-                    if (countdownStatusDot) {
-                        countdownStatusDot.className = 'status-dot connected';
-                    }
-                    
-                    // Update configuration display
-                    const countdownMinutesInput = document.getElementById('countdownMinutes');
-                    if (countdownMinutesInput) {
-                        countdownMinutesInput.value = remainingMinutes;
-                    }
-                } else {
-                    // Countdown has ended
-                    if (countdownStatusText) {
-                        countdownStatusText.textContent = 'Ended';
-                    }
-                    
-                    if (countdownStatusDot) {
-                        countdownStatusDot.className = 'status-dot warning';
-                    }
-                }
-            } catch (error) {
-                if (countdownStatusText) {
-                    countdownStatusText.textContent = 'Running';
-                }
-            }
-        } else {
-            if (countdownStatusText) {
-                countdownStatusText.textContent = 'Not Started';
-            }
-        }
-    }
-
-    // Set loading state
-    setLoadingState(buttonId, loading) {
-        const button = document.getElementById(buttonId);
-        if (button) {
-            if (loading) {
-                button.disabled = true;
-                button.classList.add('loading');
-            } else {
-                button.disabled = false;
-                button.classList.remove('loading');
-            }
-        }
-    }
-
-    // Show modal
-    showModal(title, message, onConfirm = null) {
-        const modal = document.getElementById('configModal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalBody = document.getElementById('modalBody');
-        const modalConfirm = document.getElementById('modalConfirm');
-        
-        if (modal && modalTitle && modalBody) {
-            modalTitle.textContent = title;
-            modalBody.textContent = message;
-            modal.classList.add('show');
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
             
-            if (onConfirm) {
-                modalConfirm.onclick = () => {
-                    onConfirm();
-                    this.closeModal();
-                };
-            } else {
-                modalConfirm.onclick = () => this.closeModal();
-            }
-        }
-    }
-
-    // Close modal
-    closeModal() {
-        // Close configuration modal
-        const configModal = document.getElementById('configModal');
-        if (configModal) {
-            configModal.classList.remove('show');
-        }
-        
-        // Close general modal
-        const modal = document.getElementById('modal');
-        if (modal) {
-            modal.style.display = 'none';
-        }
-        
-        // Close transaction modal
-        const transactionModal = document.getElementById('transactionModal');
-        if (transactionModal) {
-            transactionModal.classList.remove('show');
-        }
-    }
-
-    // Add log
-    log(message, type = 'info') {
-        const logContent = document.getElementById('systemLog');
-        if (!logContent) return;
-
-        const time = new Date().toLocaleTimeString();
-        const logEntry = document.createElement('div');
-        logEntry.className = `log-entry ${type}`;
-        logEntry.innerHTML = `
-            <span class="log-time">[${time}]</span>
-            <span class="log-message">${message}</span>
-        `;
-
-        logContent.appendChild(logEntry);
-        logContent.scrollTop = logContent.scrollHeight;
-
-        // Limit log entries count
-        const entries = logContent.querySelectorAll('.log-entry');
-        if (entries.length > ADMIN_CONFIG.logMaxEntries) {
-            entries[0].remove();
-        }
-    }
-
-    // Large transaction notification management methods
-    viewLargeTransactions() {
-        try {
-            const notifications = localStorage.getItem('memeCoinLargeTransactionNotifications');
-            const notificationList = notifications ? JSON.parse(notifications) : [];
-            
-            if (notificationList.length === 0) {
-                this.showModal('Large Transaction Notifications', 'No large transaction notification records');
-                return;
-            }
-            
-            this.showLargeTransactionModal(notificationList);
+            return { days, hours, minutes, seconds };
         } catch (error) {
-            console.error('Failed to view large transactions:', error);
-            this.log('Failed to view large transaction notifications', 'error');
+            return { days: 0, hours: 0, minutes: 0, seconds: 0 };
         }
     }
 
-    showLargeTransactionModal(notifications) {
-        const modal = document.getElementById('transactionModal');
-        const modalContent = document.getElementById('transactionModalContent');
+    // Utility Methods
+    validateConfig() {
+        const errors = [];
         
-        if (modal && modalContent) {
-            modalContent.innerHTML = `
-                <div class="modal-header">
-                    <h3 class="modal-title">Large Transaction Notification Records (${notifications.length})</h3>
-                    <button class="modal-close" id="modalClose">&times;</button>
-                </div>
-                <div class="modal-body">
-                    ${this.generateLargeTransactionTable(notifications)}
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" id="modalCancel">Close</button>
-                </div>
-            `;
-            
-            modal.classList.add('show');
-            
-            // Re-bind event listeners
-            document.getElementById('modalClose')?.addEventListener('click', () => this.closeModal());
-            document.getElementById('modalCancel')?.addEventListener('click', () => this.closeModal());
-        }
-    }
-
-    generateLargeTransactionTable(notifications) {
-        if (notifications.length === 0) {
-            return '<p>No large transaction notification records</p>';
+        if (!this.config.rpc.url) {
+            errors.push('RPC URL is required');
         }
         
-        const tableRows = notifications.map(notification => `
-            <tr>
-                <td>${new Date(notification.timestamp).toLocaleString()}</td>
-                <td><span class="notification-type">${notification.transaction.type}</span></td>
-                <td class="notification-amount">${notification.transaction.amount}</td>
-                <td class="notification-trader">${notification.transaction.trader}</td>
-                <td>${notification.transaction.signature.slice(0, 8)}...</td>
-            </tr>
-        `).join('');
+        if (!this.config.token.address) {
+            errors.push('Token address is required');
+        }
         
-        return `
-            <div class="table-container">
-                <table class="transaction-table">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Type</th>
-                            <th>Amount</th>
-                            <th>Trader</th>
-                            <th>Signature</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${tableRows}
-                    </tbody>
-                </table>
-            </div>
-        `;
+        if (this.config.countdown.minutes < 1 || this.config.countdown.minutes > 1440) {
+            errors.push('Countdown minutes must be between 1 and 1440');
+        }
+        
+        if (this.config.rewardCountdown.minutes < 1 || this.config.rewardCountdown.minutes > 1440) {
+            errors.push('Reward countdown minutes must be between 1 and 1440');
+        }
+        
+        return errors;
     }
 
-    clearLargeTransactions() {
-        this.showModal(
-            'Clear Large Transaction Notifications',
-            'Are you sure you want to clear all large transaction notification records? This action cannot be undone.',
-            () => {
-                try {
-                    localStorage.removeItem('memeCoinLargeTransactionNotifications');
-                    this.updateLargeTransactionStats();
-                    this.log('Large transaction notification records cleared', 'success');
-                } catch (error) {
-                    console.error('Failed to clear large transactions:', error);
-                    this.log('Failed to clear large transaction notifications', 'error');
-                }
-            }
-        );
-    }
-
-    exportLargeTransactions() {
+    exportConfig() {
         try {
-            const notifications = localStorage.getItem('memeCoinLargeTransactionNotifications');
-            const notificationList = notifications ? JSON.parse(notifications) : [];
+            const exportData = {
+                ...this.config,
+                exportTime: new Date().toISOString(),
+                version: '1.0.0'
+            };
             
-            if (notificationList.length === 0) {
-                this.showModal('Export Large Transaction Notifications', 'No large transaction notification records to export');
-                return;
-            }
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+                type: 'application/json' 
+            });
             
-            const csvContent = this.generateLargeTransactionCSV(notificationList);
-            const filename = `large_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `meme-coin-config-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
             
-            this.downloadFile(filename, csvContent);
-            this.log(`Large transaction notification records exported: ${filename}`, 'success');
+            return true;
         } catch (error) {
-            console.error('Failed to export large transactions:', error);
-            this.log('Failed to export large transaction notifications', 'error');
+            console.error('Failed to export config:', error);
+            return false;
         }
     }
 
-    generateLargeTransactionCSV(notifications) {
-        const headers = ['Time', 'Type', 'Amount', 'Trader', 'Signature', 'Message'];
-        const rows = notifications.map(notification => [
-            new Date(notification.timestamp).toLocaleString(),
-            notification.transaction.type,
-            notification.transaction.amount,
-            notification.transaction.trader,
-            notification.transaction.signature,
-            notification.message
-        ]);
-        
-        return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-    }
-
-    updateLargeTransactionStats() {
+    importConfig(configData) {
         try {
-            const notifications = localStorage.getItem('memeCoinLargeTransactionNotifications');
-            const notificationList = notifications ? JSON.parse(notifications) : [];
+            const importedConfig = typeof configData === 'string' ? 
+                JSON.parse(configData) : configData;
             
-            // Calculate today's notification count
-            const today = new Date().toDateString();
-            const todayNotifications = notificationList.filter(notification => 
-                new Date(notification.timestamp).toDateString() === today
-            ).length;
-            
-            // Update statistics display
-            const todayElement = document.getElementById('todayNotifications');
-            const totalElement = document.getElementById('totalNotifications');
-            const lastTimeElement = document.getElementById('lastNotificationTime');
-            const increasesElement = document.getElementById('countdownIncreases');
-            
-            if (todayElement) todayElement.textContent = todayNotifications;
-            if (totalElement) totalElement.textContent = notificationList.length;
-            
-            if (lastTimeElement) {
-                if (notificationList.length > 0) {
-                    const lastNotification = notificationList[0];
-                    lastTimeElement.textContent = new Date(lastNotification.timestamp).toLocaleString();
-                } else {
-                    lastTimeElement.textContent = 'None';
-                }
+            // Validate imported config
+            if (!importedConfig.rpc || !importedConfig.token || !importedConfig.countdown) {
+                throw new Error('Invalid config format');
             }
             
-            if (increasesElement) {
-                increasesElement.textContent = `${notificationList.length} times`;
-            }
+            // Update local config
+            this.config = { ...this.getDefaultConfig(), ...importedConfig };
+            this.saveConfig();
             
-            // Update recent notifications display
-            this.updateRecentLargeTransactions(notificationList.slice(0, 5));
-            
+            return true;
         } catch (error) {
-            console.error('Failed to update large transaction stats:', error);
+            console.error('Failed to import config:', error);
+            return false;
         }
     }
 
-    updateRecentLargeTransactions(recentNotifications) {
-        const container = document.getElementById('recentLargeTransactions');
-        if (!container) return;
+    // Cleanup
+    start() {
+        // Backend Manager is already started in init()
+        console.log('Backend Manager started');
+    }
+
+    destroy() {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
         
-        if (recentNotifications.length === 0) {
-            container.innerHTML = '<div class="no-notifications">No large transaction records</div>';
+        // Remove Firebase listeners
+        if (this.firebaseEnabled) {
+            Object.values(this.firebaseRefs).forEach(ref => {
+                ref.off();
+            });
+        }
+    }
+
+    // Sync all current state to Firebase
+    syncAllToFirebase() {
+        if (!this.firebaseEnabled) {
+            console.log('Firebase not available for sync');
             return;
         }
-        
-        const notificationItems = recentNotifications.map(notification => `
-            <div class="notification-item">
-                <div class="notification-header">
-                    <span class="notification-time">${new Date(notification.timestamp).toLocaleTimeString()}</span>
-                    <span class="notification-type">${notification.transaction.type}</span>
-                </div>
-                <div class="notification-details">
-                    <span class="notification-amount">${notification.transaction.amount}</span> tokens
-                    <br>by <span class="notification-trader">${notification.transaction.trader}</span>
-                </div>
-            </div>
-        `).join('');
-        
-        container.innerHTML = notificationItems;
-    }
 
-    // Successful address management methods
-    viewSuccessAddresses() {
-        const successAddresses = localStorage.getItem('memeCoinSuccessAddresses');
-        const addressList = successAddresses ? JSON.parse(successAddresses) : [];
-        
-        if (addressList.length === 0) {
-            this.showModal('Successful Addresses', 'No successful address records');
-            return;
-        }
-        
-        this.showSuccessAddressModal(addressList);
-    }
-
-    showSuccessAddressModal(addresses) {
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalBody = document.getElementById('modalBody');
-        
-        if (!modal || !modalTitle || !modalBody) return;
-        
-        modalTitle.textContent = 'Successful Address List';
-        modalBody.innerHTML = this.generateSuccessAddressTable(addresses);
-        
-        modal.classList.add('show');
-    }
-
-    generateSuccessAddressTable(addresses) {
-        return `
-            <div class="table-container">
-                <table class="transaction-table">
-                    <thead>
-                        <tr>
-                            <th>Address</th>
-                            <th>Volume</th>
-                            <th>Time</th>
-                            <th>Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${addresses.map(addr => `
-                            <tr>
-                                <td style="font-family: 'Courier New', monospace; font-size: 0.8rem;">${addr.address}</td>
-                                <td style="color: var(--success-color); font-weight: bold;">${addr.amount} tokens</td>
-                                <td>${addr.time}</td>
-                                <td>${addr.date}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    clearSuccessAddresses() {
-        this.showModal('Confirm Clear', 'Are you sure you want to clear all successful address records? This action cannot be undone.', () => {
-            localStorage.removeItem('memeCoinSuccessAddresses');
-            this.updateSuccessAddressStats();
-            this.log('Successful address records cleared', 'warning');
-        });
-    }
-
-    exportSuccessAddresses() {
-        const successAddresses = localStorage.getItem('memeCoinSuccessAddresses');
-        const addressList = successAddresses ? JSON.parse(successAddresses) : [];
-        
-        if (addressList.length === 0) {
-            this.showModal('Export Failed', 'No successful address records to export');
-            return;
-        }
-        
-        const csv = this.generateSuccessAddressCSV(addressList);
-        const filename = `success_addresses_${new Date().toISOString().split('T')[0]}.csv`;
-        this.downloadFile(filename, csv);
-        this.log('Successful address records exported', 'success');
-    }
-
-    generateSuccessAddressCSV(addresses) {
-        const headers = ['Address', 'Volume', 'Time', 'Date', 'Timestamp'];
-        const rows = addresses.map(addr => [
-            addr.address,
-            addr.amount,
-            addr.time,
-            addr.date,
-            addr.timestamp
-        ]);
-        
-        return [headers, ...rows]
-            .map(row => row.map(cell => `"${cell}"`).join(','))
-            .join('\n');
-    }
-
-    updateSuccessAddressStats() {
         try {
+            // Sync admin config
+            this.firebaseRefs.adminConfig.set(this.config);
+            
+            // Sync detection control
+            const detectionControl = localStorage.getItem('memeCoinDetection');
+            if (detectionControl) {
+                this.firebaseRefs.detection.set(JSON.parse(detectionControl));
+            }
+            
+            // Sync countdown
+            const countdown = localStorage.getItem('memeCoinCountdown');
+            if (countdown) {
+                this.firebaseRefs.countdown.set(JSON.parse(countdown));
+            }
+            
+            // Sync reward countdown
+            const rewardCountdown = localStorage.getItem('memeCoinRewardCountdown');
+            if (rewardCountdown) {
+                this.firebaseRefs.rewardCountdown.set(JSON.parse(rewardCountdown));
+            }
+            
+            // Sync backend transactions
+            const backendTransactions = localStorage.getItem('memeCoinBackendTransactions');
+            if (backendTransactions) {
+                this.firebaseRefs.backendTransactions.set(JSON.parse(backendTransactions));
+            }
+            
+            // Sync large transaction notifications
+            const largeTransactionNotifications = localStorage.getItem('memeCoinLargeTransactionNotifications');
+            if (largeTransactionNotifications) {
+                this.firebaseRefs.largeTransactionNotifications.set(JSON.parse(largeTransactionNotifications));
+            }
+            
+            // Sync success addresses
             const successAddresses = localStorage.getItem('memeCoinSuccessAddresses');
-            const addressList = successAddresses ? JSON.parse(successAddresses) : [];
-            
-            // Update statistics
-            const currentAddressCount = document.getElementById('currentAddressCount');
-            const todayNewAddresses = document.getElementById('todayNewAddresses');
-            const lastAddressUpdate = document.getElementById('lastAddressUpdate');
-            const totalAddressVolume = document.getElementById('totalAddressVolume');
-            
-            if (currentAddressCount) {
-                currentAddressCount.textContent = addressList.length;
+            if (successAddresses) {
+                this.firebaseRefs.successAddresses.set(JSON.parse(successAddresses));
             }
             
-            if (totalAddressVolume) {
-                const totalVolume = addressList.reduce((sum, addr) => sum + parseInt(addr.amount), 0);
-                totalAddressVolume.textContent = `${totalVolume.toLocaleString()} tokens`;
+            // Sync last signature
+            const lastSignature = localStorage.getItem('memeCoinLastSignature');
+            if (lastSignature) {
+                this.firebaseRefs.lastSignature.set(JSON.parse(lastSignature));
             }
             
-            if (lastAddressUpdate) {
-                if (addressList.length > 0) {
-                    const lastUpdate = new Date(addressList[0].timestamp);
-                    lastAddressUpdate.textContent = lastUpdate.toLocaleString();
-                } else {
-                    lastAddressUpdate.textContent = 'None';
+            // Sync token holders
+            const tokenHolders = localStorage.getItem('memeCoinTokenHolders');
+            if (tokenHolders) {
+                this.firebaseRefs.tokenHolders.set(JSON.parse(tokenHolders));
+            }
+            
+            // Sync holders snapshots
+            const holdersSnapshots = localStorage.getItem('memeCoinHoldersSnapshots');
+            if (holdersSnapshots) {
+                this.firebaseRefs.holdersSnapshots.set(JSON.parse(holdersSnapshots));
+            }
+            
+            console.log('All state synced to Firebase');
+        } catch (error) {
+            console.error('Failed to sync to Firebase:', error);
+        }
+    }
+
+    // Get sync status
+    getSyncStatus() {
+        return {
+            firebaseEnabled: this.firebaseEnabled,
+            lastSync: this.config?.system?.lastUpdate || null
+        };
+    }
+
+    // Universal sync methods for all data types
+    syncToFirebase(key, data) {
+        if (!this.firebaseEnabled) {
+            console.log('Firebase not available for sync');
+            return false;
+        }
+
+        try {
+            const firebaseKey = this.getFirebaseKey(key);
+            if (firebaseKey && this.firebaseRefs[firebaseKey]) {
+                this.firebaseRefs[firebaseKey].set(data);
+                console.log(`${key} synced to Firebase`);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error(`Failed to sync ${key} to Firebase:`, error);
+            return false;
+        }
+    }
+
+    // Map localStorage keys to Firebase references
+    getFirebaseKey(localStorageKey) {
+        const keyMap = {
+            'memeCoinDetection': 'detection',
+            'memeCoinAdminConfig': 'adminConfig',
+            'memeCoinCountdown': 'countdown',
+            'memeCoinRewardCountdown': 'rewardCountdown',
+            'memeCoinBackendTransactions': 'backendTransactions',
+            'memeCoinLargeTransactionNotifications': 'largeTransactionNotifications',
+            'memeCoinSuccessAddresses': 'successAddresses',
+            'memeCoinLastSignature': 'lastSignature',
+            'memeCoinTokenHolders': 'tokenHolders',
+            'memeCoinHoldersSnapshots': 'holdersSnapshots'
+        };
+        return keyMap[localStorageKey];
+    }
+
+    // Enhanced localStorage setter with Firebase sync
+    setLocalStorageWithSync(key, data) {
+        try {
+            // Save to localStorage
+            localStorage.setItem(key, JSON.stringify(data));
+            
+            // Sync to Firebase
+            this.syncToFirebase(key, data);
+            
+            return true;
+        } catch (error) {
+            console.error(`Failed to set ${key}:`, error);
+            return false;
+        }
+    }
+
+    // Enhanced localStorage remover with Firebase sync
+    removeLocalStorageWithSync(key) {
+        try {
+            // Remove from localStorage
+            localStorage.removeItem(key);
+            
+            // Remove from Firebase
+            if (this.firebaseEnabled) {
+                const firebaseKey = this.getFirebaseKey(key);
+                if (firebaseKey && this.firebaseRefs[firebaseKey]) {
+                    this.firebaseRefs[firebaseKey].remove();
+                    console.log(`${key} removed from Firebase`);
                 }
             }
             
-            // Calculate today's new address count
-            if (todayNewAddresses) {
-                const today = new Date().toDateString();
-                const todayCount = addressList.filter(addr => 
-                    new Date(addr.timestamp).toDateString() === today
-                ).length;
-                todayNewAddresses.textContent = todayCount;
-            }
-            
-            // Update address list display
-            this.updateAdminSuccessAddresses(addressList);
-            
+            return true;
         } catch (error) {
-            console.error('Failed to update success address stats:', error);
-        }
-    }
-
-    updateAdminSuccessAddresses(addressList) {
-        const container = document.getElementById('adminSuccessAddresses');
-        if (!container) return;
-        
-        if (addressList.length === 0) {
-            container.innerHTML = '<div class="no-addresses">No successful addresses</div>';
-            return;
-        }
-        
-        container.innerHTML = addressList.map(addr => `
-            <div class="admin-address-item">
-                <div class="admin-address-info">
-                    <div class="admin-address-text">${addr.address}</div>
-                    <div class="admin-address-details">${addr.date} ${addr.time}</div>
-                </div>
-                <div class="admin-address-amount">${addr.amount} tokens</div>
-            </div>
-        `).join('');
-    }
-
-    // Holdings snapshot management methods
-    viewHoldersSnapshots() {
-        try {
-            const snapshots = JSON.parse(localStorage.getItem('memeCoinHoldersSnapshots') || '[]');
-            const rewardSnapshots = snapshots.filter(snapshot => snapshot.type === 'reward_end');
-            
-            // Add test data if no snapshots exist (for testing purposes)
-            if (rewardSnapshots.length === 0) {
-                console.log('No holdings snapshots found, creating test data for demonstration');
-                const testSnapshots = [
-                    {
-                        snapshotId: 'test_snapshot_1',
-                        timestamp: Date.now() - 3600000, // 1 hour ago
-                        tokenAddress: 'WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh',
-                        type: 'reward_end',
-                        holders: [
-                            { rank: 1, address: 'ABC123...XYZ789', balance: 1000000 },
-                            { rank: 2, address: 'DEF456...UVW012', balance: 500000 },
-                            { rank: 3, address: 'GHI789...RST345', balance: 250000 }
-                        ]
-                    },
-                    {
-                        snapshotId: 'test_snapshot_2',
-                        timestamp: Date.now() - 7200000, // 2 hours ago
-                        tokenAddress: 'WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh',
-                        type: 'reward_end',
-                        holders: [
-                            { rank: 1, address: 'ABC123...XYZ789', balance: 950000 },
-                            { rank: 2, address: 'DEF456...UVW012', balance: 480000 },
-                            { rank: 3, address: 'GHI789...RST345', balance: 240000 }
-                        ]
-                    }
-                ];
-                
-                // Save test data to localStorage
-                localStorage.setItem('memeCoinHoldersSnapshots', JSON.stringify(testSnapshots));
-                rewardSnapshots.push(...testSnapshots);
-                
-                this.log('Test holdings snapshots created for demonstration', 'info');
-            }
-            
-            if (rewardSnapshots.length === 0) {
-                this.showModal('Notice', 'No holdings snapshot data');
-                return;
-            }
-            
-            this.showHoldersSnapshotModal(rewardSnapshots);
-        } catch (error) {
-            console.error('Failed to view holders snapshots:', error);
-            this.showModal('Error', 'Failed to view holdings snapshots');
-        }
-    }
-
-    // Fix existing snapshots by creating corresponding holding rewards
-    fixHoldingRewardsFromSnapshots() {
-        try {
-            const snapshots = JSON.parse(localStorage.getItem('memeCoinHoldersSnapshots') || '[]');
-            const rewardSnapshots = snapshots.filter(snapshot => snapshot.type === 'reward_end');
-            const existingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
-            
-            let createdCount = 0;
-            
-            rewardSnapshots.forEach(snapshot => {
-                // Check if holding reward already exists for this snapshot
-                const existingReward = existingRewards.find(reward => reward.snapshotId === snapshot.snapshotId);
-                
-                if (!existingReward && snapshot.holders && snapshot.holders.length > 0) {
-                    // Extract eligible addresses from snapshot
-                    const eligibleAddresses = snapshot.holders.map(holder => holder.address);
-                    
-                    // Create holding reward record
-                    const holdingReward = {
-                        id: `holding_reward_${snapshot.timestamp}`,
-                        type: 'holding',
-                        round: this.getNextHoldingRewardRound(existingRewards),
-                        amount: 3000, // Default holding reward amount
-                        eligibleAddresses: eligibleAddresses,
-                        snapshotId: snapshot.snapshotId,
-                        timestamp: snapshot.timestamp,
-                        claimed: false,
-                        createdAt: new Date().toISOString()
-                    };
-                    
-                    existingRewards.push(holdingReward);
-                    createdCount++;
-                    
-                    console.log(`Created holding reward for snapshot ${snapshot.snapshotId}:`, holdingReward);
-                }
-            });
-            
-            if (createdCount > 0) {
-                // Save updated holding rewards
-                localStorage.setItem('holdingRewards', JSON.stringify(existingRewards));
-                this.log(`Fixed ${createdCount} holding rewards from existing snapshots`, 'success');
-                this.showModal('Success', `Successfully created ${createdCount} holding rewards from existing snapshots`);
-            } else {
-                this.showModal('Notice', 'All snapshots already have corresponding holding rewards');
-            }
-            
-        } catch (error) {
-            console.error('Failed to fix holding rewards from snapshots:', error);
-            this.showModal('Error', 'Failed to fix holding rewards from snapshots');
-        }
-    }
-
-    getNextHoldingRewardRound(existingRewards) {
-        try {
-            const maxRound = existingRewards.reduce((max, reward) => {
-                return Math.max(max, reward.round || 0);
-            }, 0);
-            return maxRound + 1;
-        } catch (error) {
-            console.error('Failed to get next holding reward round:', error);
-            return 1;
-        }
-    }
-
-    // Create test holding rewards for demonstration
-    createTestHoldingRewards() {
-        try {
-            // Create test snapshots with real addresses
-            const testSnapshots = [
-                {
-                    snapshotId: 'real_test_snapshot_1',
-                    timestamp: Date.now() - 3600000, // 1 hour ago
-                    tokenAddress: 'WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh',
-                    type: 'reward_end',
-                    holders: [
-                        { rank: 1, address: 'ABC123456789012345678901234567890123456789', balance: 1000000 },
-                        { rank: 2, address: 'DEF456789012345678901234567890123456789012', balance: 500000 },
-                        { rank: 3, address: 'GHI789012345678901234567890123456789012345', balance: 250000 }
-                    ]
-                },
-                {
-                    snapshotId: 'real_test_snapshot_2',
-                    timestamp: Date.now() - 7200000, // 2 hours ago
-                    tokenAddress: 'WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh',
-                    type: 'reward_end',
-                    holders: [
-                        { rank: 1, address: 'ABC123456789012345678901234567890123456789', balance: 950000 },
-                        { rank: 2, address: 'DEF456789012345678901234567890123456789012', balance: 480000 },
-                        { rank: 3, address: 'GHI789012345678901234567890123456789012345', balance: 240000 }
-                    ]
-                }
-            ];
-
-            // Save test snapshots
-            localStorage.setItem('memeCoinHoldersSnapshots', JSON.stringify(testSnapshots));
-            
-            // Create corresponding holding rewards
-            const existingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
-            
-            testSnapshots.forEach((snapshot, index) => {
-                const eligibleAddresses = snapshot.holders.map(holder => holder.address);
-                
-                const holdingReward = {
-                    id: `test_holding_reward_${index + 1}`,
-                    type: 'holding',
-                    round: existingRewards.length + index + 1,
-                    amount: 3000,
-                    eligibleAddresses: eligibleAddresses,
-                    snapshotId: snapshot.snapshotId,
-                    timestamp: snapshot.timestamp,
-                    claimed: false,
-                    createdAt: new Date().toISOString()
-                };
-                
-                existingRewards.push(holdingReward);
-            });
-            
-            localStorage.setItem('holdingRewards', JSON.stringify(existingRewards));
-            
-            this.log('Test holding rewards created successfully', 'success');
-            this.showModal('Success', 'Test holding rewards created successfully. You can now test the claim functionality.');
-            
-        } catch (error) {
-            console.error('Failed to create test holding rewards:', error);
-            this.showModal('Error', 'Failed to create test holding rewards');
-        }
-    }
-
-    // Create test main countdown rewards for demonstration
-    createTestMainCountdownRewards() {
-        try {
-            // Create test main countdown rewards
-            const testMainCountdownRewards = [
-                {
-                    id: 'test_main_countdown_reward_1',
-                    type: 'main-countdown',
-                    round: 1,
-                    amount: 10000,
-                    winner: 'ABC123456789012345678901234567890123456789',
-                    transactionAmount: 1500000,
-                    timestamp: Date.now() - 3600000, // 1 hour ago
-                    claimed: false,
-                    createdAt: new Date(Date.now() - 3600000).toISOString()
-                },
-                {
-                    id: 'test_main_countdown_reward_2',
-                    type: 'main-countdown',
-                    round: 2,
-                    amount: 10000,
-                    winner: 'DEF456789012345678901234567890123456789012',
-                    transactionAmount: 2000000,
-                    timestamp: Date.now() - 7200000, // 2 hours ago
-                    claimed: false,
-                    createdAt: new Date(Date.now() - 7200000).toISOString()
-                }
-            ];
-
-            // Save test main countdown rewards
-            localStorage.setItem('mainCountdownRewards', JSON.stringify(testMainCountdownRewards));
-            
-            this.log('Test main countdown rewards created successfully', 'success');
-            this.showModal('Success', 'Test main countdown rewards created successfully. You can now test the main countdown claim functionality.');
-            
-        } catch (error) {
-            console.error('Failed to create test main countdown rewards:', error);
-            this.showModal('Error', 'Failed to create test main countdown rewards');
-        }
-    }
-
-    showHoldersSnapshotModal(snapshots) {
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalContent = document.getElementById('modalContent');
-        
-        if (modal && modalTitle && modalContent) {
-            modalTitle.textContent = 'Holdings Snapshot List';
-            modalContent.innerHTML = this.generateHoldersSnapshotTable(snapshots);
-            modal.style.display = 'block';
-        }
-    }
-
-    generateHoldersSnapshotTable(snapshots) {
-        let tableHTML = `
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Snapshot ID</th>
-                            <th>Time</th>
-                            <th>Token Address</th>
-                            <th>Holdings Count</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-        
-        snapshots.forEach((snapshot, index) => {
-            const date = new Date(snapshot.timestamp).toLocaleString();
-            const holderCount = snapshot.holders ? snapshot.holders.length : 0;
-            
-            tableHTML += `
-                <tr>
-                    <td>${snapshot.snapshotId}</td>
-                    <td>${date}</td>
-                    <td>${snapshot.tokenAddress ? snapshot.tokenAddress.slice(0, 8) + '...' + snapshot.tokenAddress.slice(-8) : '--'}</td>
-                    <td>${holderCount}</td>
-                    <td>
-                        <button class="btn btn-sm btn-info" onclick="window.adminApp.configManager.viewSnapshotDetails('${snapshot.snapshotId}')">
-                            View Details
-                        </button>
-                    </td>
-                </tr>
-            `;
-        });
-        
-        tableHTML += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-        
-        return tableHTML;
-    }
-
-    viewSnapshotDetails(snapshotId) {
-        try {
-            const snapshots = JSON.parse(localStorage.getItem('memeCoinHoldersSnapshots') || '[]');
-            const snapshot = snapshots.find(s => s.snapshotId === snapshotId);
-            
-            if (!snapshot) {
-                this.showModal('Error', 'Snapshot does not exist');
-                return;
-            }
-            
-            this.showSnapshotDetailsModal(snapshot);
-        } catch (error) {
-            console.error('Failed to view snapshot details:', error);
-            this.showModal('Error', 'Failed to view snapshot details');
-        }
-    }
-
-    showSnapshotDetailsModal(snapshot) {
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalContent = document.getElementById('modalContent');
-        
-        if (modal && modalTitle && modalContent) {
-            modalTitle.textContent = `Holdings Snapshot Details - ${snapshot.snapshotId}`;
-            modalContent.innerHTML = this.generateSnapshotDetailsTable(snapshot);
-            modal.style.display = 'block';
-        }
-    }
-
-    generateSnapshotDetailsTable(snapshot) {
-        let tableHTML = `
-            <div class="snapshot-info">
-                <p><strong>Snapshot Time:</strong> ${new Date(snapshot.timestamp).toLocaleString()}</p>
-                <p><strong>Token Address:</strong> ${snapshot.tokenAddress}</p>
-                <p><strong>Holdings Count:</strong> ${snapshot.holders ? snapshot.holders.length : 0}</p>
-            </div>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>Address</th>
-                            <th>Holdings</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-        
-        if (snapshot.holders && snapshot.holders.length > 0) {
-            snapshot.holders.forEach(holder => {
-                tableHTML += `
-                    <tr>
-                        <td>#${holder.rank}</td>
-                        <td>${holder.address}</td>
-                        <td>${this.formatBalance(holder.balance)}</td>
-                    </tr>
-                `;
-            });
-        } else {
-            tableHTML += '<tr><td colspan="3">No holdings data</td></tr>';
-        }
-        
-        tableHTML += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-        
-        return tableHTML;
-    }
-
-    exportHoldersSnapshots() {
-        try {
-            const snapshots = JSON.parse(localStorage.getItem('memeCoinHoldersSnapshots') || '[]');
-            const rewardSnapshots = snapshots.filter(snapshot => snapshot.type === 'reward_end');
-            
-            if (rewardSnapshots.length === 0) {
-                this.showModal('Notice', 'No holdings snapshot data to export');
-                return;
-            }
-            
-            const csvContent = this.generateHoldersSnapshotCSV(rewardSnapshots);
-            const filename = `holders_snapshots_${new Date().toISOString().slice(0, 10)}.csv`;
-            this.downloadFile(filename, csvContent);
-            
-            this.log(`Holdings snapshots exported successfully, total ${rewardSnapshots.length} snapshots`, 'success');
-        } catch (error) {
-            console.error('Failed to export holders snapshots:', error);
-            this.showModal('Error', 'Failed to export holdings snapshots');
-        }
-    }
-
-    generateHoldersSnapshotCSV(snapshots) {
-        let csv = 'Snapshot ID,Time,Token Address,Holdings Count\n';
-        
-        snapshots.forEach(snapshot => {
-            const date = new Date(snapshot.timestamp).toLocaleString();
-            const holderCount = snapshot.holders ? snapshot.holders.length : 0;
-            const tokenAddress = snapshot.tokenAddress || '';
-            
-            csv += `"${snapshot.snapshotId}","${date}","${tokenAddress}",${holderCount}\n`;
-        });
-        
-        return csv;
-    }
-
-    clearHoldersSnapshots() {
-        this.showModal('Confirm', 'Are you sure you want to clear all holdings snapshot data? This action cannot be undone.', () => {
-            try {
-                localStorage.removeItem('memeCoinHoldersSnapshots');
-                this.updateHoldersSnapshotStats();
-                this.log('Holdings snapshot data cleared', 'success');
-            } catch (error) {
-                console.error('Failed to clear holders snapshots:', error);
-                this.showModal('Error', 'Failed to clear holdings snapshots');
-            }
-        });
-    }
-
-    updateHoldersSnapshotStats() {
-        try {
-            const snapshots = JSON.parse(localStorage.getItem('memeCoinHoldersSnapshots') || '[]');
-            const rewardSnapshots = snapshots.filter(snapshot => snapshot.type === 'reward_end');
-            const count = rewardSnapshots.length;
-            
-            // Update status display
-            const statusDot = document.getElementById('holdersSnapshotStatusDot');
-            const statusText = document.getElementById('holdersSnapshotStatusText');
-            const countElement = document.getElementById('holdersSnapshotCount');
-            const latestElement = document.getElementById('holdersSnapshotLatest');
-            
-            if (statusDot) {
-                statusDot.textContent = count > 0 ? '🟢' : '🔴';
-            }
-            
-            if (statusText) {
-                statusText.textContent = count > 0 ? `${count} snapshots` : 'No snapshots';
-            }
-            
-            if (countElement) {
-                countElement.textContent = count;
-            }
-            
-            if (latestElement && rewardSnapshots.length > 0) {
-                const latest = rewardSnapshots[rewardSnapshots.length - 1];
-                const date = new Date(latest.timestamp).toLocaleString();
-                latestElement.textContent = date;
-            }
-        } catch (error) {
-            console.error('Failed to update holders snapshot stats:', error);
-        }
-    }
-
-    formatBalance(balance) {
-        if (balance >= 1000000) {
-            return (balance / 1000000).toFixed(2) + 'M';
-        } else if (balance >= 1000) {
-            return (balance / 1000).toFixed(2) + 'K';
-        } else {
-            return balance.toFixed(2);
-        }
-    }
-
-    // Reward data management methods
-    updateRewardDataStats() {
-        try {
-            const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
-            const holdingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
-            const rewardHistory = JSON.parse(localStorage.getItem('rewardHistory') || '[]');
-
-            // Update statistics display
-            const mainCountdownCount = document.getElementById('mainCountdownRewardCount');
-            const holdingCount = document.getElementById('holdingRewardCount');
-            const claimedCount = document.getElementById('claimedRewardCount');
-            const totalPoints = document.getElementById('totalRewardPoints');
-
-            if (mainCountdownCount) {
-                mainCountdownCount.textContent = `${mainCountdownRewards.length} rounds`;
-            }
-
-            if (holdingCount) {
-                holdingCount.textContent = `${holdingRewards.length} rounds`;
-            }
-
-            if (claimedCount) {
-                const claimedRewards = rewardHistory.length;
-                claimedCount.textContent = `${claimedRewards} times`;
-            }
-
-            if (totalPoints) {
-                const totalMainPoints = mainCountdownRewards.reduce((sum, reward) => sum + (reward.amount || 10000), 0);
-                const totalHoldingPoints = holdingRewards.reduce((sum, reward) => sum + (reward.amount || 3000), 0);
-                const total = totalMainPoints + totalHoldingPoints;
-                totalPoints.textContent = `${total.toLocaleString()} points`;
-            }
-
-            // Update recent reward records
-            this.updateRecentRewards();
-
-            // Update status indicators
-            const statusDot = document.getElementById('rewardDataStatusDot');
-            const statusText = document.getElementById('rewardDataStatusText');
-            
-            if (statusDot) {
-                const totalRewards = mainCountdownRewards.length + holdingRewards.length;
-                statusDot.textContent = totalRewards > 0 ? '🟢' : '🔴';
-            }
-            
-            if (statusText) {
-                const totalRewards = mainCountdownRewards.length + holdingRewards.length;
-                statusText.textContent = totalRewards > 0 ? `${totalRewards} reward rounds` : 'No rewards';
-            }
-        } catch (error) {
-            console.error('Failed to update reward data stats:', error);
-        }
-    }
-
-    updateRecentRewards() {
-        try {
-            const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
-            const holdingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
-            const recentRewardsContainer = document.getElementById('recentRewards');
-
-            if (!recentRewardsContainer) return;
-
-            // Merge all rewards and sort by time
-            const allRewards = [
-                ...mainCountdownRewards.map(reward => ({ ...reward, type: 'main-countdown' })),
-                ...holdingRewards.map(reward => ({ ...reward, type: 'holding' }))
-            ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            // Only show the latest 5 rewards
-            const recentRewards = allRewards.slice(0, 5);
-
-            if (recentRewards.length === 0) {
-                recentRewardsContainer.innerHTML = '<div class="no-rewards">No reward records</div>';
-                return;
-            }
-
-            let html = '';
-            recentRewards.forEach(reward => {
-                const date = new Date(reward.timestamp).toLocaleString();
-                const amount = reward.amount || (reward.type === 'main-countdown' ? 10000 : 3000);
-                const status = reward.claimed ? 'claimed' : 'unclaimed';
-                const statusText = reward.claimed ? 'Claimed' : 'Unclaimed';
-                
-                let winner = '';
-                if (reward.type === 'main-countdown') {
-                    winner = reward.winner || 'Unknown';
-                } else {
-                    winner = reward.eligibleAddresses ? reward.eligibleAddresses.length + ' addresses' : '0 addresses';
-                }
-
-                html += `
-                    <div class="reward-item">
-                        <div class="reward-header">
-                            <div class="reward-type ${reward.type}">
-                                <i class="fa fa-${reward.type === 'main-countdown' ? 'trophy' : 'diamond'}"></i>
-                                ${reward.type === 'main-countdown' ? 'Main Countdown Reward' : 'Holding Reward'}
-                            </div>
-                            <div class="reward-time">${date}</div>
-                        </div>
-                        <div class="reward-details">
-                            <div class="reward-winner">${winner}</div>
-                            <div class="reward-amount">${amount.toLocaleString()} points</div>
-                            <div class="reward-status ${status}">${statusText}</div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            recentRewardsContainer.innerHTML = html;
-        } catch (error) {
-            console.error('Failed to update recent rewards:', error);
-        }
-    }
-
-    viewRewardData() {
-        try {
-            const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
-            const holdingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
-
-            const allRewards = [
-                ...mainCountdownRewards.map(reward => ({ ...reward, type: 'main-countdown' })),
-                ...holdingRewards.map(reward => ({ ...reward, type: 'holding' }))
-            ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            this.showRewardDataModal(allRewards);
-        } catch (error) {
-            console.error('Failed to view reward data:', error);
-            this.log('Failed to view reward data', 'error');
-        }
-    }
-
-    showRewardDataModal(rewards) {
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalContent = document.getElementById('modalContent');
-
-        modalTitle.textContent = 'Reward Data Details';
-        
-        if (rewards.length === 0) {
-            modalContent.innerHTML = '<p style="text-align: center; color: #9CA3AF;">No reward data</p>';
-        } else {
-            let html = `
-                <div class="table-container">
-                    <table class="reward-history-table">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Time</th>
-                                <th>Winner</th>
-                                <th>Points</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            rewards.forEach(reward => {
-                const date = new Date(reward.timestamp).toLocaleString();
-                const amount = reward.amount || (reward.type === 'main-countdown' ? 10000 : 3000);
-                const status = reward.claimed ? 'claimed' : 'unclaimed';
-                const statusText = reward.claimed ? 'Claimed' : 'Unclaimed';
-                
-                let winner = '';
-                if (reward.type === 'main-countdown') {
-                    winner = reward.winner || 'Unknown';
-                } else {
-                    winner = reward.eligibleAddresses ? reward.eligibleAddresses.length + ' addresses' : '0 addresses';
-                }
-
-                html += `
-                    <tr>
-                        <td>
-                            <span class="reward-type ${reward.type}">
-                                <i class="fa fa-${reward.type === 'main-countdown' ? 'trophy' : 'diamond'}"></i>
-                                ${reward.type === 'main-countdown' ? 'Main Countdown' : 'Holding Reward'}
-                            </span>
-                        </td>
-                        <td>${date}</td>
-                        <td class="reward-history-address">${winner}</td>
-                        <td class="reward-history-amount">${amount.toLocaleString()}</td>
-                        <td><span class="reward-history-status ${status}">${statusText}</span></td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-
-            modalContent.innerHTML = html;
-        }
-
-        modal.classList.add('show');
-    }
-
-    exportRewardData() {
-        try {
-            const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
-            const holdingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
-
-            const allRewards = [
-                ...mainCountdownRewards.map(reward => ({ ...reward, type: 'main-countdown' })),
-                ...holdingRewards.map(reward => ({ ...reward, type: 'holding' }))
-            ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            const csv = this.generateRewardDataCSV(allRewards);
-            const filename = `reward_data_${new Date().toISOString().split('T')[0]}.csv`;
-            this.downloadFile(filename, csv);
-            this.log('Reward data exported successfully', 'success');
-        } catch (error) {
-            console.error('Failed to export reward data:', error);
-            this.log('Failed to export reward data', 'error');
-        }
-    }
-
-    generateRewardDataCSV(rewards) {
-        const headers = ['Type', 'Time', 'Winner', 'Points', 'Status', 'Round'];
-        const rows = rewards.map(reward => {
-            const date = new Date(reward.timestamp).toLocaleString();
-            const amount = reward.amount || (reward.type === 'main-countdown' ? 10000 : 3000);
-            const status = reward.claimed ? 'Claimed' : 'Unclaimed';
-            
-            let winner = '';
-            if (reward.type === 'main-countdown') {
-                winner = reward.winner || 'Unknown';
-            } else {
-                winner = reward.eligibleAddresses ? reward.eligibleAddresses.length + ' addresses' : '0 addresses';
-            }
-
-            return [
-                reward.type === 'main-countdown' ? 'Main Countdown Reward' : 'Holding Reward',
-                date,
-                winner,
-                amount,
-                status,
-                reward.round || 'Unknown'
-            ];
-        });
-
-        return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-    }
-
-    viewRewardHistory() {
-        try {
-            const rewardHistory = JSON.parse(localStorage.getItem('rewardHistory') || '[]');
-            this.showRewardHistoryModal(rewardHistory);
-        } catch (error) {
-            console.error('Failed to view reward history:', error);
-            this.log('Failed to view reward history', 'error');
-        }
-    }
-
-    showRewardHistoryModal(history) {
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalContent = document.getElementById('modalContent');
-
-        modalTitle.textContent = 'Reward Claim History';
-        
-        if (history.length === 0) {
-            modalContent.innerHTML = '<p style="text-align: center; color: #9CA3AF;">No claim history</p>';
-        } else {
-            let html = `
-                <div class="table-container">
-                    <table class="reward-history-table">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Time</th>
-                                <th>Wallet Address</th>
-                                <th>Points</th>
-                                <th>Round</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            history.forEach(record => {
-                const date = new Date(record.timestamp).toLocaleString();
-                const address = record.address || 'Unknown';
-
-                html += `
-                    <tr>
-                        <td>${record.type}</td>
-                        <td>${date}</td>
-                        <td class="reward-history-address">${address}</td>
-                        <td class="reward-history-amount">${record.amount.toLocaleString()}</td>
-                        <td>${record.rounds || '1'}</td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-
-            modalContent.innerHTML = html;
-        }
-
-        modal.classList.add('show');
-    }
-
-    clearRewardData() {
-        this.showModal(
-            'Clear Reward Data',
-            'Are you sure you want to clear all reward data? This action cannot be undone!',
-            () => {
-                try {
-                    localStorage.removeItem('mainCountdownRewards');
-                    localStorage.removeItem('holdingRewards');
-                    localStorage.removeItem('rewardHistory');
-                    
-                    this.updateRewardDataStats();
-                    this.log('Reward data cleared', 'success');
-                } catch (error) {
-                    console.error('Failed to clear reward data:', error);
-                    this.log('Failed to clear reward data', 'error');
-                }
-            }
-        );
-    }
-}
-
-// System Monitor Class
-class SystemMonitor {
-    constructor() {
-        this.startTime = new Date();
-        this.init();
-    }
-
-    // Initialize monitoring
-    init() {
-        this.startUptimeCounter();
-        this.startRefreshCounter();
-        this.startCountdownStatusUpdate();
-        this.startRewardCountdownStatusUpdate();
-        this.startLargeTransactionStatusUpdate();
-        this.startSuccessAddressStatusUpdate();
-        this.startHoldersSnapshotStatusUpdate();
-        this.startRewardDataStatusUpdate();
-    }
-
-    // Start uptime counter
-    startUptimeCounter() {
-        setInterval(() => {
-            const uptime = document.getElementById('uptime');
-            if (uptime) {
-                const now = new Date();
-                const diff = now - this.startTime;
-                const hours = Math.floor(diff / (1000 * 60 * 60));
-                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                uptime.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            }
-        }, 1000);
-    }
-
-    // Start refresh counter
-    startRefreshCounter() {
-        let count = 10;
-        setInterval(() => {
-            const refreshCount = document.getElementById('refreshCount');
-            if (refreshCount) {
-                count = count === 0 ? 10 : count - 1;
-                refreshCount.textContent = count;
-            }
-        }, 1000);
-    }
-
-    // Start countdown status update
-    startCountdownStatusUpdate() {
-        setInterval(() => {
-            if (window.adminApp && window.adminApp.configManager) {
-                window.adminApp.configManager.checkGlobalCountdown();
-                window.adminApp.configManager.updateCountdownStatus();
-            }
-        }, 1000);
-    }
-
-    // Start holding countdown status update
-    startRewardCountdownStatusUpdate() {
-        setInterval(() => {
-            if (window.adminApp && window.adminApp.configManager) {
-                window.adminApp.configManager.updateRewardCountdownStatus();
-            }
-        }, 1000);
-    }
-
-    // Start large transaction notification status update
-    startLargeTransactionStatusUpdate() {
-        setInterval(() => {
-            if (window.adminApp && window.adminApp.configManager) {
-                window.adminApp.configManager.updateLargeTransactionStats();
-            }
-        }, 5000); // Update every 5 seconds
-    }
-
-    // Start successful address status update
-    startSuccessAddressStatusUpdate() {
-        setInterval(() => {
-            if (window.adminApp && window.adminApp.configManager) {
-                window.adminApp.configManager.updateSuccessAddressStats();
-            }
-        }, 5000); // Update every 5 seconds
-    }
-
-    // Start holdings snapshot status update
-    startHoldersSnapshotStatusUpdate() {
-        setInterval(() => {
-            if (window.adminApp && window.adminApp.configManager) {
-                window.adminApp.configManager.updateHoldersSnapshotStats();
-            }
-        }, 5000); // Update every 5 seconds
-    }
-
-    // Start reward data status update
-    startRewardDataStatusUpdate() {
-        setInterval(() => {
-            if (window.adminApp && window.adminApp.configManager) {
-                window.adminApp.configManager.updateRewardDataStats();
-            }
-        }, 5000); // Update every 5 seconds
-    }
-}
-
-// Main Application Class
-class AdminApp {
-    constructor() {
-        this.configManager = null;
-        this.systemMonitor = null;
-        this.backendManager = null;
-    }
-
-    // Initialize application
-    init() {
-        this.configManager = new ConfigManager();
-        this.systemMonitor = new SystemMonitor();
-        
-        // Initialize BackendManager for Firebase sync
-        this.initBackendManager();
-        
-        console.log('Meme Coin Admin Management System started');
-        this.configManager.log('Admin management system started', 'success');
-    }
-
-    // Initialize BackendManager
-    initBackendManager() {
-        try {
-            // Check if BackendManager module is available
-            if (typeof BackendManager !== 'undefined') {
-                this.backendManager = new BackendManager();
-                window.backendManager = this.backendManager;
-                this.configManager.log('BackendManager initialized with Firebase sync', 'success');
-            } else {
-                console.log('BackendManager not available, using localStorage only');
-                this.configManager.log('BackendManager not available, using localStorage only', 'warning');
-            }
-        } catch (error) {
-            console.error('Failed to initialize BackendManager:', error);
-            this.configManager.log('Failed to initialize BackendManager', 'error');
+            console.error(`Failed to remove ${key}:`, error);
+            return false;
         }
     }
 }
 
-// Initialize application after DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    const app = new AdminApp();
-    app.init();
-    
-    // Mount application instance to global for debugging
-    window.adminApp = app;
-});
-
-// Clean up resources when page unloads
-window.addEventListener('beforeunload', () => {
-    if (window.adminApp && window.adminApp.configManager) {
-        window.adminApp.configManager.saveConfig();
-    }
-}); 
+// Export for use in other modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { BackendManager };
+} 
