@@ -73,12 +73,19 @@ class BackendManager {
                     adminConfig: firebase.database().ref('adminConfig'),
                     detection: firebase.database().ref('detection'),
                     countdown: firebase.database().ref('countdown'),
-                    transactions: firebase.database().ref('transactions')
+                    rewardCountdown: firebase.database().ref('rewardCountdown'),
+                    transactions: firebase.database().ref('transactions'),
+                    backendTransactions: firebase.database().ref('backendTransactions'),
+                    largeTransactionNotifications: firebase.database().ref('largeTransactionNotifications'),
+                    successAddresses: firebase.database().ref('successAddresses'),
+                    lastSignature: firebase.database().ref('lastSignature'),
+                    tokenHolders: firebase.database().ref('tokenHolders'),
+                    holdersSnapshots: firebase.database().ref('holdersSnapshots')
                 };
                 
                 // Set up real-time listeners
                 this.setupFirebaseListeners();
-                console.log('Firebase real-time sync enabled');
+                console.log('Firebase real-time sync enabled for all data types');
             } else {
                 console.log('Firebase not available, using localStorage only');
             }
@@ -121,6 +128,76 @@ class BackendManager {
                 this.onCountdownChanged(data);
             }
         });
+
+        // Listen for reward countdown changes
+        this.firebaseRefs.rewardCountdown.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Reward countdown updated from Firebase');
+                localStorage.setItem('memeCoinRewardCountdown', JSON.stringify(data));
+                this.onRewardCountdownChanged(data);
+            }
+        });
+
+        // Listen for backend transactions changes
+        this.firebaseRefs.backendTransactions.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Backend transactions updated from Firebase');
+                localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
+                this.onBackendTransactionsChanged(data);
+            }
+        });
+
+        // Listen for large transaction notifications changes
+        this.firebaseRefs.largeTransactionNotifications.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Large transaction notifications updated from Firebase');
+                localStorage.setItem('memeCoinLargeTransactionNotifications', JSON.stringify(data));
+                this.onLargeTransactionNotificationsChanged(data);
+            }
+        });
+
+        // Listen for success addresses changes
+        this.firebaseRefs.successAddresses.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Success addresses updated from Firebase');
+                localStorage.setItem('memeCoinSuccessAddresses', JSON.stringify(data));
+                this.onSuccessAddressesChanged(data);
+            }
+        });
+
+        // Listen for last signature changes
+        this.firebaseRefs.lastSignature.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Last signature updated from Firebase');
+                localStorage.setItem('memeCoinLastSignature', JSON.stringify(data));
+                this.onLastSignatureChanged(data);
+            }
+        });
+
+        // Listen for token holders changes
+        this.firebaseRefs.tokenHolders.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Token holders updated from Firebase');
+                localStorage.setItem('memeCoinTokenHolders', JSON.stringify(data));
+                this.onTokenHoldersChanged(data);
+            }
+        });
+
+        // Listen for holders snapshots changes
+        this.firebaseRefs.holdersSnapshots.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log('Holders snapshots updated from Firebase');
+                localStorage.setItem('memeCoinHoldersSnapshots', JSON.stringify(data));
+                this.onHoldersSnapshotsChanged(data);
+            }
+        });
     }
 
     onConfigChanged() {
@@ -138,6 +215,48 @@ class BackendManager {
     onCountdownChanged(countdownData) {
         // Trigger countdown updates
         const event = new CustomEvent('countdownChanged', { detail: countdownData });
+        document.dispatchEvent(event);
+    }
+
+    onRewardCountdownChanged(countdownData) {
+        // Trigger reward countdown updates
+        const event = new CustomEvent('rewardCountdownChanged', { detail: countdownData });
+        document.dispatchEvent(event);
+    }
+
+    onBackendTransactionsChanged(transactionsData) {
+        // Trigger backend transactions updates
+        const event = new CustomEvent('backendTransactionsChanged', { detail: transactionsData });
+        document.dispatchEvent(event);
+    }
+
+    onLargeTransactionNotificationsChanged(notificationsData) {
+        // Trigger large transaction notifications updates
+        const event = new CustomEvent('largeTransactionNotificationsChanged', { detail: notificationsData });
+        document.dispatchEvent(event);
+    }
+
+    onSuccessAddressesChanged(addressesData) {
+        // Trigger success addresses updates
+        const event = new CustomEvent('successAddressesChanged', { detail: addressesData });
+        document.dispatchEvent(event);
+    }
+
+    onLastSignatureChanged(signatureData) {
+        // Trigger last signature updates
+        const event = new CustomEvent('lastSignatureChanged', { detail: signatureData });
+        document.dispatchEvent(event);
+    }
+
+    onTokenHoldersChanged(holdersData) {
+        // Trigger token holders updates
+        const event = new CustomEvent('tokenHoldersChanged', { detail: holdersData });
+        document.dispatchEvent(event);
+    }
+
+    onHoldersSnapshotsChanged(snapshotsData) {
+        // Trigger holders snapshots updates
+        const event = new CustomEvent('holdersSnapshotsChanged', { detail: snapshotsData });
         document.dispatchEvent(event);
     }
 
@@ -534,10 +653,46 @@ class BackendManager {
                 this.firebaseRefs.countdown.set(JSON.parse(countdown));
             }
             
-            // Sync transactions
-            const transactions = localStorage.getItem('memeCoinBackendTransactions');
-            if (transactions) {
-                this.firebaseRefs.transactions.set(JSON.parse(transactions));
+            // Sync reward countdown
+            const rewardCountdown = localStorage.getItem('memeCoinRewardCountdown');
+            if (rewardCountdown) {
+                this.firebaseRefs.rewardCountdown.set(JSON.parse(rewardCountdown));
+            }
+            
+            // Sync backend transactions
+            const backendTransactions = localStorage.getItem('memeCoinBackendTransactions');
+            if (backendTransactions) {
+                this.firebaseRefs.backendTransactions.set(JSON.parse(backendTransactions));
+            }
+            
+            // Sync large transaction notifications
+            const largeTransactionNotifications = localStorage.getItem('memeCoinLargeTransactionNotifications');
+            if (largeTransactionNotifications) {
+                this.firebaseRefs.largeTransactionNotifications.set(JSON.parse(largeTransactionNotifications));
+            }
+            
+            // Sync success addresses
+            const successAddresses = localStorage.getItem('memeCoinSuccessAddresses');
+            if (successAddresses) {
+                this.firebaseRefs.successAddresses.set(JSON.parse(successAddresses));
+            }
+            
+            // Sync last signature
+            const lastSignature = localStorage.getItem('memeCoinLastSignature');
+            if (lastSignature) {
+                this.firebaseRefs.lastSignature.set(JSON.parse(lastSignature));
+            }
+            
+            // Sync token holders
+            const tokenHolders = localStorage.getItem('memeCoinTokenHolders');
+            if (tokenHolders) {
+                this.firebaseRefs.tokenHolders.set(JSON.parse(tokenHolders));
+            }
+            
+            // Sync holders snapshots
+            const holdersSnapshots = localStorage.getItem('memeCoinHoldersSnapshots');
+            if (holdersSnapshots) {
+                this.firebaseRefs.holdersSnapshots.set(JSON.parse(holdersSnapshots));
             }
             
             console.log('All state synced to Firebase');
@@ -552,6 +707,82 @@ class BackendManager {
             firebaseEnabled: this.firebaseEnabled,
             lastSync: this.config?.system?.lastUpdate || null
         };
+    }
+
+    // Universal sync methods for all data types
+    syncToFirebase(key, data) {
+        if (!this.firebaseEnabled) {
+            console.log('Firebase not available for sync');
+            return false;
+        }
+
+        try {
+            const firebaseKey = this.getFirebaseKey(key);
+            if (firebaseKey && this.firebaseRefs[firebaseKey]) {
+                this.firebaseRefs[firebaseKey].set(data);
+                console.log(`${key} synced to Firebase`);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error(`Failed to sync ${key} to Firebase:`, error);
+            return false;
+        }
+    }
+
+    // Map localStorage keys to Firebase references
+    getFirebaseKey(localStorageKey) {
+        const keyMap = {
+            'memeCoinDetection': 'detection',
+            'memeCoinAdminConfig': 'adminConfig',
+            'memeCoinCountdown': 'countdown',
+            'memeCoinRewardCountdown': 'rewardCountdown',
+            'memeCoinBackendTransactions': 'backendTransactions',
+            'memeCoinLargeTransactionNotifications': 'largeTransactionNotifications',
+            'memeCoinSuccessAddresses': 'successAddresses',
+            'memeCoinLastSignature': 'lastSignature',
+            'memeCoinTokenHolders': 'tokenHolders',
+            'memeCoinHoldersSnapshots': 'holdersSnapshots'
+        };
+        return keyMap[localStorageKey];
+    }
+
+    // Enhanced localStorage setter with Firebase sync
+    setLocalStorageWithSync(key, data) {
+        try {
+            // Save to localStorage
+            localStorage.setItem(key, JSON.stringify(data));
+            
+            // Sync to Firebase
+            this.syncToFirebase(key, data);
+            
+            return true;
+        } catch (error) {
+            console.error(`Failed to set ${key}:`, error);
+            return false;
+        }
+    }
+
+    // Enhanced localStorage remover with Firebase sync
+    removeLocalStorageWithSync(key) {
+        try {
+            // Remove from localStorage
+            localStorage.removeItem(key);
+            
+            // Remove from Firebase
+            if (this.firebaseEnabled) {
+                const firebaseKey = this.getFirebaseKey(key);
+                if (firebaseKey && this.firebaseRefs[firebaseKey]) {
+                    this.firebaseRefs[firebaseKey].remove();
+                    console.log(`${key} removed from Firebase`);
+                }
+            }
+            
+            return true;
+        } catch (error) {
+            console.error(`Failed to remove ${key}:`, error);
+            return false;
+        }
     }
 }
 
