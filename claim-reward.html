@@ -735,7 +735,7 @@
             loadRewardData();
             updateDisplay();
             
-            // Sync points balance from backend when wallet is connected
+            // Sync points balance from backend when wallet is connected (优先使用贪吃蛇游戏积分)
             if (walletConnected && walletAddress) {
                 await syncPointsFromBackend();
             }
@@ -1134,7 +1134,7 @@
                 return;
             }
 
-            // Get latest points balance from backend
+            // Get latest points balance from backend (贪吃蛇游戏积分系统)
             const backendPoints = await getBackendPointsBalance(walletAddress);
             const availablePoints = backendPoints !== null ? backendPoints : totalPoints;
 
@@ -1159,7 +1159,7 @@
                 const result = await callFirebaseClaimToken(walletAddress, exchangeAmount, tokenAmount);
                 
                 if (result.success) {
-                    // Update local storage to reflect the exchange
+                    // Update local storage to reflect the exchange (贪吃蛇游戏积分系统)
                     updatePointsAfterExchange(exchangeAmount);
                     
                     // Update UI
@@ -1173,7 +1173,7 @@
                     // Add to reward history
                     addToRewardHistory(`Token Exchange`, exchangeAmount, new Date().toISOString());
                     
-                    // Clear input and update display
+                    // Clear input and update display (贪吃蛇游戏积分系统)
                     document.getElementById('exchangeAmount').value = '';
                     updateExchangePreview();
                     loadRewardData();
@@ -1221,7 +1221,7 @@
             measurementId: "G-SJR9NDW86B"
         };
 
-        // Sync claimed points to backend
+        // Sync claimed points to backend - 使用贪吃蛇游戏的积分系统
         async function syncClaimedPointsToBackend(walletAddress, pointsAmount, rewardType) {
             try {
                 // Initialize Firebase if not already initialized
@@ -1230,29 +1230,18 @@
                     await loadFirebaseSDK();
                 }
 
-                // 使用 Realtime Database 直接更新用户积分
+                // 使用贪吃蛇游戏的积分系统 - 直接更新 Realtime Database
                 const userRef = firebase.database().ref(`users/${walletAddress}`);
                 const userSnap = await userRef.once('value');
                 const userData = userSnap.val() || {};
                 const currentScore = userData.score || 0;
                 const newScore = currentScore + pointsAmount;
 
-                // 更新用户积分
+                // 更新用户积分（与贪吃蛇游戏使用相同的数据结构）
                 await userRef.update({
                     score: newScore,
                     lastUpdated: Date.now(),
                     walletAddress: walletAddress
-                });
-
-                // 记录领取历史
-                const historyRef = firebase.database().ref('claimHistory');
-                await historyRef.push({
-                    walletAddress: walletAddress,
-                    pointsAmount: pointsAmount,
-                    rewardType: rewardType,
-                    timestamp: Date.now(),
-                    previousPoints: currentScore,
-                    newPoints: newScore
                 });
 
                 console.log('Points synced to backend:', { currentScore, newScore });
@@ -1265,7 +1254,7 @@
             }
         }
 
-        // Get points balance from backend
+        // Get points balance from backend - 使用贪吃蛇游戏的积分系统
         async function getBackendPointsBalance(walletAddress) {
             try {
                 // Validate wallet address
@@ -1280,7 +1269,7 @@
                     await loadFirebaseSDK();
                 }
 
-                // 直接从 Realtime Database 获取用户积分
+                // 直接从贪吃蛇游戏的 Realtime Database 获取用户积分
                 const userRef = firebase.database().ref(`users/${walletAddress}`);
                 const userSnap = await userRef.once('value');
                 const userData = userSnap.val();
@@ -1296,17 +1285,17 @@
             }
         }
 
-        // Sync points balance from backend
+        // Sync points balance from backend - 使用贪吃蛇游戏的积分系统
         async function syncPointsFromBackend() {
             if (!walletAddress) return;
             
             try {
                 const backendPoints = await getBackendPointsBalance(walletAddress);
                 if (backendPoints !== null) {
-                    // Update total points with backend balance
+                    // Update total points with backend balance (贪吃蛇游戏积分)
                     totalPoints = backendPoints;
                     updateDisplay();
-                    console.log('Points synced from backend:', backendPoints);
+                    console.log('Points synced from backend (贪吃蛇游戏):', backendPoints);
                 }
             } catch (error) {
                 console.error('Failed to sync points from backend:', error);
@@ -1330,7 +1319,7 @@
             }
 
             try {
-                // 调用已部署的 claimToken 函数
+                // 调用贪吃蛇游戏的 claimToken Cloud Function
                 const callable = firebase.functions().httpsCallable('claimToken');
                 const result = await callable({
                     wallet: walletAddress
@@ -1438,7 +1427,7 @@
                 updateDisplay();
                 updateExchangeButton(); // Update exchange button state
                 
-                // Sync points from backend to ensure accurate balance
+                // Sync points from backend to ensure accurate balance (贪吃蛇游戏积分)
                 try {
                     await syncPointsFromBackend();
                 } catch (error) {
