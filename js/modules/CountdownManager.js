@@ -221,6 +221,20 @@ class MainCountdown {
                         console.log('Countdown updated from global storage:', this.minutes, this.seconds);
                         return; // Don't execute local countdown logic
                     }
+                } else {
+                    // Global countdown has ended - determine winner
+                    console.log('Global countdown ended - determining winner...');
+                    this.determineMainCountdownWinner();
+                    this.showLaunchMessage();
+                    
+                    // Clear the global countdown to prevent repeated execution
+                    localStorage.removeItem('memeCoinCountdown');
+                    
+                    // Restart countdown after delay
+                    setTimeout(() => {
+                        this.restart();
+                    }, 3000);
+                    return;
                 }
             } catch (error) {
                 console.error('Failed to parse global countdown:', error);
@@ -276,18 +290,40 @@ class MainCountdown {
             }
             
             const notificationList = JSON.parse(notifications);
-            const buyTransactions = notificationList.filter(notification => 
-                notification.transaction && 
-                notification.transaction.type && 
-                notification.transaction.type.toLowerCase() === 'buy'
-            );
+            
+            // Get countdown end time (current time)
+            const countdownEndTime = Date.now();
+            console.log('Countdown end time:', new Date(countdownEndTime).toISOString());
+            
+            // Filter buy transactions that occurred before countdown ended
+            const buyTransactions = notificationList.filter(notification => {
+                if (!notification.transaction || 
+                    !notification.transaction.type || 
+                    notification.transaction.type.toLowerCase() !== 'buy') {
+                    return false;
+                }
+                
+                // Check if transaction occurred before countdown ended
+                const transactionTime = new Date(notification.timestamp).getTime();
+                const isBeforeCountdownEnd = transactionTime <= countdownEndTime;
+                
+                console.log('Transaction time check:', {
+                    transactionTime: new Date(transactionTime).toISOString(),
+                    countdownEndTime: new Date(countdownEndTime).toISOString(),
+                    isBeforeCountdownEnd: isBeforeCountdownEnd,
+                    trader: notification.transaction.trader,
+                    amount: notification.transaction.amount
+                });
+                
+                return isBeforeCountdownEnd;
+            });
             
             if (buyTransactions.length === 0) {
-                console.log('No large buy transactions found');
+                console.log('No large buy transactions found before countdown end');
                 return;
             }
             
-            // Get the most recent large buy transaction
+            // Get the most recent large buy transaction (before countdown end)
             const lastBuyTransaction = buyTransactions[0]; // Already sorted by unshift()
             const winner = lastBuyTransaction.transaction.trader;
             const amount = lastBuyTransaction.transaction.amount;
@@ -295,7 +331,9 @@ class MainCountdown {
             console.log('Main countdown winner determined:', {
                 winner: winner,
                 amount: amount,
-                transaction: lastBuyTransaction
+                transaction: lastBuyTransaction,
+                totalBuyTransactions: buyTransactions.length,
+                countdownEndTime: new Date(countdownEndTime).toISOString()
             });
             
             // Create main countdown address snapshot for reward evidence
