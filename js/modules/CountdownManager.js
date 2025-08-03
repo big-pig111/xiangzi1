@@ -151,7 +151,12 @@ class MainCountdown {
                 targetDate: targetDate.toISOString(),
                 lastUpdate: new Date().toISOString()
             };
-            localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinCountdown', countdownData);
+            } else {
+                localStorage.setItem('memeCoinCountdown', JSON.stringify(countdownData));
+            }
             
             // Also save to backend configuration (backup)
             const adminConfig = localStorage.getItem('memeCoinAdminConfig');
@@ -163,7 +168,12 @@ class MainCountdown {
                 lastUpdate: new Date().toISOString()
             };
             
-            localStorage.setItem('memeCoinAdminConfig', JSON.stringify(config));
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinAdminConfig', config);
+            } else {
+                localStorage.setItem('memeCoinAdminConfig', JSON.stringify(config));
+            }
             
             console.log('Countdown saved to backend:', countdownData);
         } catch (error) {
@@ -576,7 +586,12 @@ class RewardCountdown {
                 lastUpdate: new Date().toISOString()
             };
             
-            localStorage.setItem('memeCoinAdminConfig', JSON.stringify(config));
+            // Use BackendManager for sync if available
+            if (window.backendManager) {
+                window.backendManager.setLocalStorageWithSync('memeCoinAdminConfig', config);
+            } else {
+                localStorage.setItem('memeCoinAdminConfig', JSON.stringify(config));
+            }
             
             console.log('Reward countdown saved to backend:', countdownData);
         } catch (error) {
