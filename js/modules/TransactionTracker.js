@@ -13,6 +13,7 @@ class TransactionTracker {
         this.transactions = [];
         this.maxTransactions = 100;
         this.lastSignature = null;
+        this.debugMode = false; // Add debug mode
         this.init();
     }
 
@@ -41,6 +42,11 @@ class TransactionTracker {
         setInterval(() => {
             this.checkDetectionControl();
         }, 10000);
+
+        // Clean up old transactions every 5 minutes
+        setInterval(() => {
+            this.cleanupOldTransactions();
+        }, 300000); // 5 minutes
     }
 
     async connect(rpcUrl) {
@@ -117,25 +123,50 @@ class TransactionTracker {
                 { limit: 20 } // Increased limit for better coverage
             );
 
-            let newTransactionsFound = false;
+            if (this.debugMode) {
+                console.log(`Polling: Found ${signatures.length} signatures, lastSignature: ${this.lastSignature ? this.lastSignature.slice(0, 8) + '...' : 'null'}`);
+            }
 
-            for (const sig of signatures) {
+            let newTransactionsFound = false;
+            let processedCount = 0;
+
+            // Process signatures in reverse order (oldest first) to maintain correct order
+            for (let i = signatures.length - 1; i >= 0; i--) {
+                const sig = signatures[i];
+                
+                if (this.debugMode) {
+                    console.log(`Checking signature: ${sig.signature.slice(0, 8)}...`);
+                }
+                
+                // Skip if we've already processed this signature
                 if (this.lastSignature && sig.signature === this.lastSignature) {
-                    break; // Already processed
+                    if (this.debugMode) {
+                        console.log(`Reached already processed signature: ${sig.signature.slice(0, 8)}...`);
+                    }
+                    break; // Stop processing, we've reached already processed transactions
                 }
 
+                // Skip first run (initialize lastSignature)
                 if (!this.lastSignature) {
                     this.lastSignature = sig.signature;
-                    continue; // Skip first run
+                    if (this.debugMode) {
+                        console.log(`Initialized lastSignature: ${sig.signature.slice(0, 8)}...`);
+                    }
+                    break; // Exit after setting the first signature
                 }
 
                 // Process transaction immediately
                 await this.processTransaction(sig.signature, sig.blockTime);
                 newTransactionsFound = true;
+                processedCount++;
+                
+                // Update lastSignature to the most recent processed signature
+                this.lastSignature = sig.signature;
             }
 
             // Update UI immediately if new transactions were found
             if (newTransactionsFound) {
+                console.log(`Processed ${processedCount} new transactions`);
                 this.updateTransactionStats();
                 this.updateTransactionList();
                 this.updateLastUpdate();
@@ -152,6 +183,12 @@ class TransactionTracker {
             });
 
             if (!tx || this.isTransactionDuplicate(signature)) {
+                return;
+            }
+
+            // Validate transaction data
+            if (!this.validateTransaction(tx)) {
+                console.log(`Invalid transaction data for signature: ${signature.slice(0, 8)}...`);
                 return;
             }
 
@@ -194,8 +231,59 @@ class TransactionTracker {
         }
     }
 
+    validateTransaction(tx) {
+        // Basic validation checks
+        if (!tx || !tx.meta || !tx.transaction) {
+            return false;
+        }
+
+        // Check if transaction has valid instructions
+        if (!tx.transaction.message || !tx.transaction.message.instructions) {
+            return false;
+        }
+
+        // Check if transaction has valid accounts
+        if (!tx.transaction.message.accountKeys || tx.transaction.message.accountKeys.length === 0) {
+            return false;
+        }
+
+        // Check if transaction has a valid signature
+        if (!tx.transaction.signatures || tx.transaction.signatures.length === 0) {
+            return false;
+        }
+
+        // Check if transaction has valid block time
+        if (!tx.blockTime || tx.blockTime <= 0) {
+            return false;
+        }
+
+        return true;
+    }
+
     isTransactionDuplicate(signature) {
-        return this.transactions.some(tx => tx.signature === signature);
+        // Check in memory transactions
+        const memoryDuplicate = this.transactions.some(tx => tx.signature === signature);
+        if (memoryDuplicate) {
+            console.log(`Duplicate transaction detected in memory: ${signature.slice(0, 8)}...`);
+            return true;
+        }
+        
+        // Check in localStorage backend transactions
+        try {
+            const backendData = localStorage.getItem('memeCoinBackendTransactions');
+            if (backendData) {
+                const data = JSON.parse(backendData);
+                const backendDuplicate = data.transactions.some(tx => tx.signature === signature);
+                if (backendDuplicate) {
+                    console.log(`Duplicate transaction detected in backend: ${signature.slice(0, 8)}...`);
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error('Error checking backend duplicates:', error);
+        }
+        
+        return false;
     }
 
     addTransaction(transactionData) {
@@ -894,6 +982,52 @@ class TransactionTracker {
         }
     }
 
+    cleanupOldTransactions() {
+        try {
+            // Clean up memory transactions (keep only last 50)
+            if (this.transactions.length > 50) {
+                this.transactions = this.transactions.slice(0, 50);
+                console.log('Cleaned up memory transactions');
+            }
+
+            // Clean up localStorage transactions (keep only last 100)
+            const backendData = localStorage.getItem('memeCoinBackendTransactions');
+            if (backendData) {
+                const data = JSON.parse(backendData);
+                if (data.transactions && data.transactions.length > 100) {
+                    data.transactions = data.transactions.slice(0, 100);
+                    localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
+                    console.log('Cleaned up localStorage transactions');
+                }
+            }
+
+            // Clean up transactions older than 24 hours
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            
+            // Clean memory transactions
+            this.transactions = this.transactions.filter(tx => {
+                const txDate = new Date(tx.timestamp);
+                return txDate > oneDayAgo;
+            });
+
+            // Clean localStorage transactions
+            if (backendData) {
+                const data = JSON.parse(backendData);
+                if (data.transactions) {
+                    data.transactions = data.transactions.filter(tx => {
+                        const txDate = new Date(tx.timestamp);
+                        return txDate > oneDayAgo;
+                    });
+                    localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
+                }
+            }
+
+            console.log('Cleaned up old transactions (older than 24 hours)');
+        } catch (error) {
+            console.error('Error cleaning up old transactions:', error);
+        }
+    }
+
     // UI Update Methods
     updateConnectionStatus(status, text) {
         const statusElement = document.getElementById('connectionStatus');
@@ -1044,6 +1178,28 @@ class TransactionTracker {
 
     destroy() {
         this.stopTracking();
+    }
+
+    // Debug Methods
+    enableDebugMode() {
+        this.debugMode = true;
+        console.log('TransactionTracker debug mode enabled');
+    }
+
+    disableDebugMode() {
+        this.debugMode = false;
+        console.log('TransactionTracker debug mode disabled');
+    }
+
+    // Utility Methods
+    getDebugInfo() {
+        return {
+            isTracking: this.isTracking,
+            tokenAddress: this.tokenAddress,
+            lastSignature: this.lastSignature ? this.lastSignature.slice(0, 8) + '...' : 'null',
+            transactionCount: this.transactions.length,
+            debugMode: this.debugMode
+        };
     }
 }
 
