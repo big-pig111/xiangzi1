@@ -346,7 +346,18 @@ class MainCountdown {
                 }
             };
 
-            // Get existing main countdown snapshots
+            // 使用保护机制创建快照
+            if (window.snapshotProtection) {
+                const success = window.snapshotProtection.createSnapshot(addressSnapshot);
+                if (success) {
+                    console.log('✅ 主倒计时地址快照创建成功 (带保护):', addressSnapshot.snapshotId);
+                    return addressSnapshot;
+                } else {
+                    console.error('❌ 保护机制创建快照失败，使用备用方法');
+                }
+            }
+
+            // 备用方法：直接保存到 localStorage
             const existingSnapshots = JSON.parse(localStorage.getItem('mainCountdownAddressSnapshots') || '[]');
             existingSnapshots.push(addressSnapshot);
             
@@ -355,6 +366,9 @@ class MainCountdown {
                 existingSnapshots.shift();
             }
 
+            // 立即创建备份
+            this.createSnapshotBackup(existingSnapshots);
+
             // Use BackendManager for sync if available
             if (window.backendManager) {
                 window.backendManager.setLocalStorageWithSync('mainCountdownAddressSnapshots', existingSnapshots);
@@ -362,14 +376,25 @@ class MainCountdown {
                 localStorage.setItem('mainCountdownAddressSnapshots', JSON.stringify(existingSnapshots));
             }
             
-            console.log('Main countdown address snapshot created:', addressSnapshot.snapshotId);
+            console.log('✅ 主倒计时地址快照创建成功 (备用方法):', addressSnapshot.snapshotId);
             console.log('Enhanced snapshot evidence data:', addressSnapshot.evidence);
             console.log('Snapshot statistics:', addressSnapshot.statistics);
             
             return addressSnapshot;
         } catch (error) {
-            console.error('Failed to create main countdown address snapshot:', error);
+            console.error('❌ Failed to create main countdown address snapshot:', error);
             return null;
+        }
+    }
+
+    // 创建快照备份
+    createSnapshotBackup(snapshots) {
+        try {
+            localStorage.setItem('mainCountdownAddressSnapshots_backup', JSON.stringify(snapshots));
+            localStorage.setItem('lastSnapshotBackupTime', new Date().toISOString());
+            console.log('✅ 快照备份创建成功');
+        } catch (error) {
+            console.error('❌ 快照备份创建失败:', error);
         }
     }
 
@@ -910,6 +935,139 @@ class RewardCountdown {
         this.stop();
     }
 }
+
+// 主倒计时快照保护机制
+class SnapshotProtection {
+    constructor() {
+        this.backupEnabled = true;
+        this.autoBackupInterval = 30000; // 30秒
+        this.maxSnapshots = 50;
+        this.maxBackups = 10;
+    }
+
+    // 创建快照时自动备份
+    createSnapshot(snapshotData) {
+        try {
+            // 1. 保存到主存储
+            const existingSnapshots = JSON.parse(localStorage.getItem('mainCountdownAddressSnapshots') || '[]');
+            existingSnapshots.push(snapshotData);
+            
+            // 2. 限制快照数量
+            if (existingSnapshots.length > this.maxSnapshots) {
+                existingSnapshots.splice(0, existingSnapshots.length - this.maxSnapshots);
+            }
+            
+            localStorage.setItem('mainCountdownAddressSnapshots', JSON.stringify(existingSnapshots));
+            
+            // 3. 立即备份
+            this.createBackup();
+            
+            // 4. 同步到 Firebase (如果可用)
+            if (window.backendManager && window.backendManager.firebaseEnabled) {
+                window.backendManager.setLocalStorageWithSync('mainCountdownAddressSnapshots', existingSnapshots);
+            }
+            
+            console.log('✅ 快照创建成功并已备份:', snapshotData.snapshotId);
+            return true;
+        } catch (error) {
+            console.error('❌ 快照创建失败:', error);
+            return false;
+        }
+    }
+
+    // 创建备份
+    createBackup() {
+        if (!this.backupEnabled) return;
+        
+        try {
+            const snapshots = localStorage.getItem('mainCountdownAddressSnapshots');
+            const rewards = localStorage.getItem('mainCountdownRewards');
+            
+            if (snapshots) {
+                localStorage.setItem('mainCountdownAddressSnapshots_backup', snapshots);
+            }
+            if (rewards) {
+                localStorage.setItem('mainCountdownRewards_backup', rewards);
+            }
+            
+            localStorage.setItem('lastBackupTime', new Date().toISOString());
+            console.log('✅ 数据备份完成');
+        } catch (error) {
+            console.error('❌ 备份失败:', error);
+        }
+    }
+
+    // 从备份恢复
+    restoreFromBackup() {
+        try {
+            const backupSnapshots = localStorage.getItem('mainCountdownAddressSnapshots_backup');
+            const backupRewards = localStorage.getItem('mainCountdownRewards_backup');
+            
+            if (backupSnapshots) {
+                localStorage.setItem('mainCountdownAddressSnapshots', backupSnapshots);
+                console.log('✅ 快照数据已从备份恢复');
+            }
+            if (backupRewards) {
+                localStorage.setItem('mainCountdownRewards', backupRewards);
+                console.log('✅ 奖励数据已从备份恢复');
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('❌ 恢复失败:', error);
+            return false;
+        }
+    }
+
+    // 验证数据完整性
+    validateDataIntegrity() {
+        try {
+            const snapshots = JSON.parse(localStorage.getItem('mainCountdownAddressSnapshots') || '[]');
+            const rewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+            
+            const snapshotIds = snapshots.map(s => s.snapshotId);
+            const rewardSnapshotIds = rewards.filter(r => r.snapshotId).map(r => r.snapshotId);
+            
+            const missingInSnapshots = rewardSnapshotIds.filter(id => !snapshotIds.includes(id));
+            const missingInRewards = snapshotIds.filter(id => !rewardSnapshotIds.includes(id));
+            
+            return {
+                isValid: missingInSnapshots.length === 0 && missingInRewards.length === 0,
+                missingInSnapshots,
+                missingInRewards
+            };
+        } catch (error) {
+            console.error('❌ 数据完整性检查失败:', error);
+            return { isValid: false, error: error.message };
+        }
+    }
+
+    // 启动自动备份
+    startAutoBackup() {
+        if (this.backupInterval) {
+            clearInterval(this.backupInterval);
+        }
+        
+        this.backupInterval = setInterval(() => {
+            this.createBackup();
+        }, this.autoBackupInterval);
+        
+        console.log('✅ 自动备份已启动');
+    }
+
+    // 停止自动备份
+    stopAutoBackup() {
+        if (this.backupInterval) {
+            clearInterval(this.backupInterval);
+            this.backupInterval = null;
+            console.log('⏹️ 自动备份已停止');
+        }
+    }
+}
+
+// 全局快照保护实例
+window.snapshotProtection = new SnapshotProtection();
+window.snapshotProtection.startAutoBackup();
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
