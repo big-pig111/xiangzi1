@@ -1097,23 +1097,7 @@ body {
     font-size: 0.875rem;
 }
 
-/* Countdown ended state */
-.countdown-launched {
-    grid-column: span 2;
-    text-align: center;
-}
-
-.launched-text {
-    font-size: clamp(2rem, 8vw, 5rem);
-    font-weight: bold;
-    color: var(--meme-pink);
-}
-
-.launched-subtitle {
-    font-size: 1.5rem;
-    color: white;
-    margin-top: 1rem;
-}
+/* Countdown ended state - removed launch animation */
 
 /* Responsive design */
 @media (max-width: 1400px) {
