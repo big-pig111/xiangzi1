@@ -60,6 +60,12 @@ class BackendManager {
             system: {
                 lastUpdate: new Date().toISOString(),
                 uptime: new Date().toISOString()
+            },
+            mainCountdownReward: {
+                address: '',
+                amount: 100000,
+                isSet: false,
+                lastUpdate: null
             }
         };
     }
@@ -809,6 +815,147 @@ class BackendManager {
         } catch (error) {
             console.error(`Failed to remove ${key}:`, error);
             return false;
+        }
+    }
+
+    // Main Countdown Reward Address Management
+    setMainCountdownRewardAddress(address) {
+        try {
+            this.config.mainCountdownReward.address = address;
+            this.config.mainCountdownReward.amount = 100000; // Fixed amount for main countdown
+            this.config.mainCountdownReward.isSet = true;
+            this.config.mainCountdownReward.lastUpdate = new Date().toISOString();
+            
+            // Save to localStorage
+            localStorage.setItem('mainCountdownRewardAddress', JSON.stringify({
+                address: address,
+                amount: 100000,
+                isSet: true,
+                lastUpdate: new Date().toISOString()
+            }));
+            
+            // Save to Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.mainCountdownRewards.set({
+                    address: address,
+                    amount: 100000,
+                    isSet: true,
+                    lastUpdate: new Date().toISOString()
+                });
+                console.log('Main countdown reward address saved to Firebase');
+            }
+            
+            // Save config
+            this.saveConfig();
+            
+            console.log(`Main countdown reward address set: ${address}`);
+            return true;
+        } catch (error) {
+            console.error('Failed to set main countdown reward address:', error);
+            return false;
+        }
+    }
+
+    getMainCountdownRewardAddress() {
+        try {
+            // First try to get from localStorage
+            const localData = localStorage.getItem('mainCountdownRewardAddress');
+            if (localData) {
+                const data = JSON.parse(localData);
+                return data;
+            }
+            
+            // Fallback to config
+            return this.config.mainCountdownReward;
+        } catch (error) {
+            console.error('Failed to get main countdown reward address:', error);
+            return null;
+        }
+    }
+
+    clearMainCountdownRewardAddress() {
+        try {
+            // Clear from config
+            this.config.mainCountdownReward.address = '';
+            this.config.mainCountdownReward.amount = 100000;
+            this.config.mainCountdownReward.isSet = false;
+            this.config.mainCountdownReward.lastUpdate = new Date().toISOString();
+            
+            // Remove from localStorage
+            localStorage.removeItem('mainCountdownRewardAddress');
+            
+            // Remove from Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.mainCountdownRewards.remove();
+                console.log('Main countdown reward address removed from Firebase');
+            }
+            
+            // Save config
+            this.saveConfig();
+            
+            console.log('Main countdown reward address cleared');
+            return true;
+        } catch (error) {
+            console.error('Failed to clear main countdown reward address:', error);
+            return false;
+        }
+    }
+
+    validateSolanaAddress(address) {
+        // Basic Solana address validation (44 characters, base58)
+        const solanaAddressRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+        return solanaAddressRegex.test(address);
+    }
+
+    createMainCountdownRewardForAddress(address) {
+        try {
+            if (!this.validateSolanaAddress(address)) {
+                throw new Error('Invalid Solana address format');
+            }
+
+            const rewardData = {
+                id: `main_countdown_reward_${Date.now()}`,
+                type: 'main-countdown',
+                round: 1,
+                amount: 100000,
+                winner: address,
+                timestamp: Date.now(),
+                claimed: false,
+                createdAt: new Date().toISOString(),
+                evidence: {
+                    address: address,
+                    rewardType: 'main_countdown_winner',
+                    eligibilityCriteria: 'admin_configured_address'
+                },
+                rewardDetails: {
+                    rewardType: 'main_countdown_winner',
+                    eligibilityCriteria: 'admin_configured_address',
+                    winnerDeterminationTime: new Date().toISOString()
+                },
+                status: {
+                    created: true,
+                    claimed: false,
+                    claimedAt: null,
+                    claimTransactionHash: null
+                }
+            };
+
+            // Save to localStorage
+            const existingRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+            existingRewards.push(rewardData);
+            localStorage.setItem('mainCountdownRewards', JSON.stringify(existingRewards));
+
+            // Save to Firebase if available
+            if (this.firebaseEnabled) {
+                this.firebaseRefs.mainCountdownRewards.push(rewardData);
+                console.log('Main countdown reward created in Firebase');
+            }
+
+            console.log(`Main countdown reward created for address: ${address}`);
+            return rewardData;
+        } catch (error) {
+            console.error('Failed to create main countdown reward:', error);
+            return null;
         }
     }
 }
