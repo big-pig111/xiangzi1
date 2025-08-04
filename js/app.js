@@ -511,4 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { MemeCoinApp };
-} 
+} else {
+    // Browser environment - expose to global scope
+    window.MemeCoinApp = MemeCoinApp;
+}
