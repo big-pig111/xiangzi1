@@ -80,7 +80,9 @@ class BackendManager {
                     successAddresses: firebase.database().ref('successAddresses'),
                     lastSignature: firebase.database().ref('lastSignature'),
                     tokenHolders: firebase.database().ref('tokenHolders'),
-                    holdersSnapshots: firebase.database().ref('holdersSnapshots')
+                    holdersSnapshots: firebase.database().ref('holdersSnapshots'),
+                    mainCountdownSnapshots: firebase.database().ref('mainCountdownSnapshots'),
+                    mainCountdownRewards: firebase.database().ref('mainCountdownRewards')
                 };
                 
                 // Set up real-time listeners
