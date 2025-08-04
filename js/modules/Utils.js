@@ -397,4 +397,7 @@ class Utils {
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { Utils };
+} else {
+    // Browser environment - expose to global scope
+    window.Utils = Utils;
 } 
