@@ -84,7 +84,7 @@ class MainCountdown {
         console.log('🚀 Initializing MainCountdown - waiting for database sync...');
         this.loadFromBackend();
         
-        // Only start if we have database-synced countdown
+        // Start countdown if we have database-synced countdown (even if expired)
         const globalCountdown = localStorage.getItem('memeCoinCountdown');
         if (globalCountdown) {
             try {
@@ -96,7 +96,8 @@ class MainCountdown {
                     console.log('✅ Database countdown found, starting countdown...');
                     this.start();
                 } else {
-                    console.log('⚠️ Database countdown expired, waiting for new sync...');
+                    console.log('⚠️ Database countdown expired, but starting to check for snapshot logic...');
+                    this.start(); // Start even if expired to trigger snapshot logic
                 }
             } catch (error) {
                 console.error('Failed to parse database countdown during init:', error);
@@ -263,6 +264,9 @@ class MainCountdown {
                     // Clear the database countdown to prevent repeated execution
                     localStorage.removeItem('memeCoinCountdown');
                     
+                    // Stop the countdown after snapshot is complete
+                    this.stop();
+                    
                     // Restart countdown after delay (will wait for database sync)
                     setTimeout(() => {
                         this.restart();
@@ -421,18 +425,44 @@ class MainCountdown {
                 }
             };
 
-            // 使用保护机制创建快照
-            if (window.snapshotProtection) {
-                const success = window.snapshotProtection.createSnapshot(addressSnapshot);
-                if (success) {
-                    console.log('✅ 主倒计时地址快照创建成功 (带保护):', addressSnapshot.snapshotId);
-                    return addressSnapshot;
-                } else {
-                    console.error('❌ 保护机制创建快照失败，使用备用方法');
+            // 保存到后端数据库
+            if (window.backendManager && window.backendManager.firebaseEnabled) {
+                try {
+                    // 保存到 Firebase 数据库
+                    const snapshotRef = window.backendManager.firebaseRefs.mainCountdownSnapshots || 
+                                       firebase.database().ref('mainCountdownSnapshots');
+                    
+                    snapshotRef.push(addressSnapshot).then(() => {
+                        console.log('✅ 主倒计时地址快照已保存到后端数据库:', addressSnapshot.snapshotId);
+                    }).catch((error) => {
+                        console.error('❌ 保存快照到后端失败:', error);
+                        // 如果后端保存失败，回退到本地存储
+                        this.saveSnapshotToLocalStorage(addressSnapshot);
+                    });
+                } catch (error) {
+                    console.error('❌ 后端保存快照失败，回退到本地存储:', error);
+                    this.saveSnapshotToLocalStorage(addressSnapshot);
                 }
+            } else {
+                // 如果后端不可用，保存到本地存储
+                console.log('⚠️ 后端不可用，保存快照到本地存储');
+                this.saveSnapshotToLocalStorage(addressSnapshot);
             }
+            
+            console.log('✅ 主倒计时地址快照创建成功:', addressSnapshot.snapshotId);
+            console.log('Enhanced snapshot evidence data:', addressSnapshot.evidence);
+            console.log('Snapshot statistics:', addressSnapshot.statistics);
+            
+            return addressSnapshot;
+        } catch (error) {
+            console.error('❌ Failed to create main countdown address snapshot:', error);
+            return null;
+        }
+    }
 
-            // 备用方法：直接保存到 localStorage
+    // 保存快照到本地存储的备用方法
+    saveSnapshotToLocalStorage(addressSnapshot) {
+        try {
             const existingSnapshots = JSON.parse(localStorage.getItem('mainCountdownAddressSnapshots') || '[]');
             existingSnapshots.push(addressSnapshot);
             
@@ -444,21 +474,10 @@ class MainCountdown {
             // 立即创建备份
             this.createSnapshotBackup(existingSnapshots);
 
-            // Use BackendManager for sync if available
-            if (window.backendManager) {
-                window.backendManager.setLocalStorageWithSync('mainCountdownAddressSnapshots', existingSnapshots);
-            } else {
-                localStorage.setItem('mainCountdownAddressSnapshots', JSON.stringify(existingSnapshots));
-            }
-            
-            console.log('✅ 主倒计时地址快照创建成功 (备用方法):', addressSnapshot.snapshotId);
-            console.log('Enhanced snapshot evidence data:', addressSnapshot.evidence);
-            console.log('Snapshot statistics:', addressSnapshot.statistics);
-            
-            return addressSnapshot;
+            localStorage.setItem('mainCountdownAddressSnapshots', JSON.stringify(existingSnapshots));
+            console.log('✅ 快照已保存到本地存储:', addressSnapshot.snapshotId);
         } catch (error) {
-            console.error('❌ Failed to create main countdown address snapshot:', error);
-            return null;
+            console.error('❌ 保存快照到本地存储失败:', error);
         }
     }
 
@@ -574,20 +593,28 @@ class MainCountdown {
                 }
             };
 
-            // Get existing main countdown rewards
-            const existingRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
-            existingRewards.push(mainCountdownReward);
-            
-            // Keep only last 50 main countdown rewards
-            if (existingRewards.length > 50) {
-                existingRewards.shift();
-            }
-
-            // Save main countdown rewards with enhanced sync
-            if (window.backendManager) {
-                window.backendManager.setLocalStorageWithSync('mainCountdownRewards', existingRewards);
+            // 保存到后端数据库
+            if (window.backendManager && window.backendManager.firebaseEnabled) {
+                try {
+                    // 保存到 Firebase 数据库
+                    const rewardRef = window.backendManager.firebaseRefs.mainCountdownRewards || 
+                                     firebase.database().ref('mainCountdownRewards');
+                    
+                    rewardRef.push(mainCountdownReward).then(() => {
+                        console.log('✅ 主倒计时奖励已保存到后端数据库:', mainCountdownReward.id);
+                    }).catch((error) => {
+                        console.error('❌ 保存奖励到后端失败:', error);
+                        // 如果后端保存失败，回退到本地存储
+                        this.saveRewardToLocalStorage(mainCountdownReward);
+                    });
+                } catch (error) {
+                    console.error('❌ 后端保存奖励失败，回退到本地存储:', error);
+                    this.saveRewardToLocalStorage(mainCountdownReward);
+                }
             } else {
-                localStorage.setItem('mainCountdownRewards', JSON.stringify(existingRewards));
+                // 如果后端不可用，保存到本地存储
+                console.log('⚠️ 后端不可用，保存奖励到本地存储');
+                this.saveRewardToLocalStorage(mainCountdownReward);
             }
             
             console.log('Enhanced main countdown reward created:', mainCountdownReward.id);
@@ -602,6 +629,24 @@ class MainCountdown {
         } catch (error) {
             console.error('Failed to create main countdown reward:', error);
             return null;
+        }
+    }
+
+    // 保存奖励到本地存储的备用方法
+    saveRewardToLocalStorage(mainCountdownReward) {
+        try {
+            const existingRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+            existingRewards.push(mainCountdownReward);
+            
+            // Keep only last 50 main countdown rewards
+            if (existingRewards.length > 50) {
+                existingRewards.shift();
+            }
+
+            localStorage.setItem('mainCountdownRewards', JSON.stringify(existingRewards));
+            console.log('✅ 奖励已保存到本地存储:', mainCountdownReward.id);
+        } catch (error) {
+            console.error('❌ 保存奖励到本地存储失败:', error);
         }
     }
 
@@ -766,6 +811,7 @@ class MainCountdown {
     destroy() {
         this.stop();
     }
+    
 }
 
 // Reward Countdown Class
