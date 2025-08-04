@@ -963,4 +963,12 @@ class BackendManager {
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { BackendManager };
+} else {
+    // Browser environment - expose to global scope
+    window.BackendManager = BackendManager;
+}
+
+// Make BackendManager available globally
+if (typeof window !== 'undefined') {
+    window.BackendManager = BackendManager;
 } 
