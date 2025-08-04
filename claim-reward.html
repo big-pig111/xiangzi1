@@ -680,16 +680,8 @@
                 <div class="exchange-calculator">
                     <h4>🧮 Exchange Calculator</h4>
                     <div class="calculator-input">
-                        <label for="exchangeAmount">Points to Exchange:</label>
-                        <input 
-                            type="number" 
-                            id="exchangeAmount" 
-                            placeholder="Enter points amount"
-                            min="1"
-                            max="1000000"
-                            oninput="updateExchangePreview()"
-                        >
                         <div class="exchange-preview" id="exchangePreview">
+                            <span>Available Points: <strong id="availablePoints">0</strong></span>
                             <span>You will receive: <strong id="tokenAmount">0</strong> MEME tokens</span>
                         </div>
                     </div>
@@ -697,10 +689,10 @@
                 
                 <div class="exchange-actions">
                     <button id="exchangeBtn" class="exchange-button" onclick="exchangeTokens()" disabled>
-                        🪙 Exchange Points for Tokens
+                        🪙 Exchange All Points for Tokens
                     </button>
                     <div class="exchange-status" id="exchangeStatus">
-                        <span>Connect wallet and enter amount to exchange</span>
+                        <span>Connect wallet to exchange all available points</span>
                     </div>
                 </div>
             </div>
@@ -785,9 +777,9 @@
                 if (reward.winner === walletAddress) {
                     if (!reward.claimed) {
                         mainCountdownEligibleCount++;
-                        mainCountdownTotalPoints += reward.amount || 10000;
+                        mainCountdownTotalPoints += reward.amount || 100000;
                     } else {
-                        mainCountdownClaimedPoints += reward.amount || 10000;
+                        mainCountdownClaimedPoints += reward.amount || 100000;
                     }
                 }
             });
@@ -851,7 +843,7 @@
                 mainCountdownStatus.textContent = 'Not Available';
                 mainCountdownStatus.style.color = '#9CA3AF';
                 mainCountdownWinner.textContent = '-';
-                mainCountdownAmount.textContent = '10,000 Points'; // Default value
+                mainCountdownAmount.textContent = '100,000 Points'; // Default value
                 claimMainBtn.disabled = true;
                 claimMainBtn.textContent = '🏆 Claim Main Countdown Reward';
                 mainRewardDiv.className = 'reward-info';
@@ -883,6 +875,9 @@
                 claimHoldingBtn.textContent = '💎 Claim Holding Reward';
                 holdingRewardDiv.className = 'reward-info';
             }
+
+            // Update exchange preview
+            updateExchangePreview();
         }
 
         // Claim main countdown reward (Enhanced version learning from holding rewards)
@@ -933,7 +928,7 @@
                         };
                         
                         claimedCount++;
-                        claimedPoints += reward.amount || 10000;
+                        claimedPoints += reward.amount || 100000;
                         
                         console.log(`Enhanced main countdown reward claimed:`, {
                             rewardId: reward.id,
@@ -1153,8 +1148,8 @@
 
         // Token Exchange Functions
         function updateExchangePreview() {
-            const exchangeAmount = parseInt(document.getElementById('exchangeAmount').value) || 0;
-            const tokenAmount = exchangeAmount * 10; // 1:10 ratio
+            const tokenAmount = totalPoints * 10; // 1:10 ratio - exchange all points
+            document.getElementById('availablePoints').textContent = totalPoints.toLocaleString();
             document.getElementById('tokenAmount').textContent = tokenAmount.toLocaleString();
             
             updateExchangeButton();
@@ -1162,7 +1157,6 @@
 
         function updateExchangeButton() {
             const exchangeBtn = document.getElementById('exchangeBtn');
-            const exchangeAmount = parseInt(document.getElementById('exchangeAmount').value) || 0;
             const exchangeStatus = document.getElementById('exchangeStatus');
             
             if (!walletConnected) {
@@ -1172,22 +1166,15 @@
                 return;
             }
             
-            if (exchangeAmount <= 0) {
+            if (totalPoints <= 0) {
                 exchangeBtn.disabled = true;
-                exchangeStatus.innerHTML = '<span>Enter a valid amount to exchange</span>';
-                exchangeStatus.className = 'exchange-status';
-                return;
-            }
-            
-            if (exchangeAmount > totalPoints) {
-                exchangeBtn.disabled = true;
-                exchangeStatus.innerHTML = `<span>Insufficient points. You have ${totalPoints.toLocaleString()} points available</span>`;
+                exchangeStatus.innerHTML = '<span>No points available to exchange</span>';
                 exchangeStatus.className = 'exchange-status error';
                 return;
             }
             
             exchangeBtn.disabled = false;
-            exchangeStatus.innerHTML = `<span>Ready to exchange ${exchangeAmount.toLocaleString()} points for ${(exchangeAmount * 10).toLocaleString()} MEME tokens</span>`;
+            exchangeStatus.innerHTML = `<span>Ready to exchange all ${totalPoints.toLocaleString()} points for ${(totalPoints * 10).toLocaleString()} MEME tokens</span>`;
             exchangeStatus.className = 'exchange-status success';
         }
 
@@ -1197,18 +1184,13 @@
                 return;
             }
 
-            const exchangeAmount = parseInt(document.getElementById('exchangeAmount').value) || 0;
-            if (exchangeAmount <= 0) {
-                showNotification('Please enter a valid amount to exchange!', 'error');
-                return;
-            }
-
             // Get latest points balance from backend (贪吃蛇游戏积分系统)
             const backendPoints = await getBackendPointsBalance(walletAddress);
             const availablePoints = backendPoints !== null ? backendPoints : totalPoints;
+            const exchangeAmount = availablePoints; // Exchange all available points
 
-            if (exchangeAmount > availablePoints) {
-                showNotification(`Insufficient points. You have ${availablePoints.toLocaleString()} points available!`, 'error');
+            if (exchangeAmount <= 0) {
+                showNotification('No points available to exchange!', 'error');
                 return;
             }
 
@@ -1242,15 +1224,14 @@
                     // Add to reward history
                     addToRewardHistory(`Token Exchange`, exchangeAmount, new Date().toISOString());
                     
-                    // Clear input and update display (贪吃蛇游戏积分系统)
-                    document.getElementById('exchangeAmount').value = '';
+                    // Update display (贪吃蛇游戏积分系统)
                     updateExchangePreview();
                     loadRewardData();
                     updateDisplay();
                     
                     // Reset button after 3 seconds
                     setTimeout(() => {
-                        exchangeBtn.textContent = '🪙 Exchange Points for Tokens';
+                        exchangeBtn.textContent = '🪙 Exchange All Points for Tokens';
                         exchangeBtn.disabled = false;
                         updateExchangeButton();
                     }, 3000);
@@ -1271,7 +1252,7 @@
                 
                 // Reset button after 3 seconds
                 setTimeout(() => {
-                    exchangeBtn.textContent = '🪙 Exchange Points for Tokens';
+                    exchangeBtn.textContent = '🪙 Exchange All Points for Tokens';
                     exchangeBtn.disabled = false;
                     updateExchangeButton();
                 }, 3000);
@@ -1470,8 +1451,8 @@
             
             for (let i = 0; i < mainCountdownRewards.length && remainingPoints > 0; i++) {
                 if (mainCountdownRewards[i].winner === walletAddress && !mainCountdownRewards[i].claimed) {
-                    const pointsToDeduct = Math.min(remainingPoints, mainCountdownRewards[i].amount || 10000);
-                    mainCountdownRewards[i].amount = (mainCountdownRewards[i].amount || 10000) - pointsToDeduct;
+                    const pointsToDeduct = Math.min(remainingPoints, mainCountdownRewards[i].amount || 100000);
+                    mainCountdownRewards[i].amount = (mainCountdownRewards[i].amount || 100000) - pointsToDeduct;
                     remainingPoints -= pointsToDeduct;
                     
                     // If all points are used, mark as claimed
