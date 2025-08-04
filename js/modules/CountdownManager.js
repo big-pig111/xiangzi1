@@ -512,4 +512,9 @@ class RewardCountdown {
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { CountdownManager, MainCountdown, RewardCountdown };
+} else {
+    // Browser environment - expose to global scope
+    window.CountdownManager = CountdownManager;
+    window.MainCountdown = MainCountdown;
+    window.RewardCountdown = RewardCountdown;
 } 
