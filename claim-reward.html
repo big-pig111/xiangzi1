@@ -763,26 +763,98 @@
             }
         }
 
-        // Load reward data from localStorage
-        function loadRewardData() {
+        // Load reward data from backend and localStorage
+        async function loadRewardData() {
             if (!walletAddress) return;
 
-            // Check main countdown rewards (multiple rounds)
-            const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
             let mainCountdownEligibleCount = 0;
             let mainCountdownTotalPoints = 0;
             let mainCountdownClaimedPoints = 0;
 
-            mainCountdownRewards.forEach((reward, index) => {
-                if (reward.winner === walletAddress) {
-                    if (!reward.claimed) {
-                        mainCountdownEligibleCount++;
-                        mainCountdownTotalPoints += reward.amount || 100000;
-                    } else {
-                        mainCountdownClaimedPoints += reward.amount || 100000;
+            // Check if user is eligible for main countdown reward based on admin configuration
+            try {
+                // First check if there's a configured reward address
+                const rewardAddressData = localStorage.getItem('mainCountdownRewardAddress');
+                if (rewardAddressData) {
+                    const rewardConfig = JSON.parse(rewardAddressData);
+                    if (rewardConfig.address === walletAddress && rewardConfig.isSet) {
+                        // Check if reward already exists in localStorage
+                        const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+                        const existingReward = mainCountdownRewards.find(reward => 
+                            reward.winner === walletAddress && 
+                            reward.evidence && 
+                            reward.evidence.eligibilityCriteria === 'admin_configured_address'
+                        );
+                        
+                        if (existingReward) {
+                            if (!existingReward.claimed) {
+                                mainCountdownEligibleCount++;
+                                mainCountdownTotalPoints += existingReward.amount || 100000;
+                            } else {
+                                mainCountdownClaimedPoints += existingReward.amount || 100000;
+                            }
+                        } else {
+                            // Create the reward if it doesn't exist
+                            const newReward = {
+                                id: `main_countdown_reward_${Date.now()}`,
+                                type: 'main-countdown',
+                                round: 1,
+                                amount: 100000,
+                                winner: walletAddress,
+                                timestamp: Date.now(),
+                                claimed: false,
+                                createdAt: new Date().toISOString(),
+                                evidence: {
+                                    address: walletAddress,
+                                    rewardType: 'main_countdown_winner',
+                                    eligibilityCriteria: 'admin_configured_address'
+                                },
+                                rewardDetails: {
+                                    rewardType: 'main_countdown_winner',
+                                    eligibilityCriteria: 'admin_configured_address',
+                                    winnerDeterminationTime: new Date().toISOString()
+                                },
+                                status: {
+                                    created: true,
+                                    claimed: false,
+                                    claimedAt: null,
+                                    claimTransactionHash: null
+                                }
+                            };
+                            
+                            mainCountdownRewards.push(newReward);
+                            localStorage.setItem('mainCountdownRewards', JSON.stringify(mainCountdownRewards));
+                            
+                            // Save to Firebase if available
+                            if (typeof firebase !== 'undefined' && firebase.database) {
+                                firebase.database().ref('mainCountdownRewards').push(newReward);
+                            }
+                            
+                            mainCountdownEligibleCount++;
+                            mainCountdownTotalPoints += 100000;
+                            console.log('✅ Created main countdown reward for configured address');
+                        }
                     }
                 }
-            });
+            } catch (error) {
+                console.error('Error checking admin configured reward:', error);
+            }
+
+            // Fallback to check existing rewards in localStorage
+            if (mainCountdownEligibleCount === 0 && mainCountdownTotalPoints === 0) {
+                const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+                mainCountdownRewards.forEach((reward, index) => {
+                    if (reward.winner === walletAddress) {
+                        if (!reward.claimed) {
+                            mainCountdownEligibleCount++;
+                            mainCountdownTotalPoints += reward.amount || 100000;
+                        } else {
+                            mainCountdownClaimedPoints += reward.amount || 100000;
+                        }
+                    }
+                });
+                console.log('✅ Loaded rewards from localStorage fallback');
+            }
 
             // Check holding rewards (multiple rounds)
             const holdingRewards = JSON.parse(localStorage.getItem('holdingRewards') || '[]');
@@ -940,7 +1012,45 @@
                     }
                 });
                 
-                // 使用增强的同步机制保存奖励数据
+                // Update Firebase backend first
+                try {
+                    if (typeof firebase !== 'undefined' && firebase.database) {
+                        const rewardsRef = firebase.database().ref('mainCountdownRewards');
+                        const snapshot = await rewardsRef.orderByChild('winner').equalTo(walletAddress).once('value');
+                        const rewards = snapshot.val();
+                        
+                        if (rewards) {
+                            const updates = {};
+                            Object.keys(rewards).forEach((key) => {
+                                const reward = rewards[key];
+                                if (!reward.claimed) {
+                                    updates[`${key}/claimed`] = true;
+                                    updates[`${key}/claimedAt`] = new Date().toISOString();
+                                    updates[`${key}/status/claimed`] = true;
+                                    updates[`${key}/status/claimedAt`] = new Date().toISOString();
+                                    updates[`${key}/status/claimTransactionHash`] = claimTransactionHash;
+                                    updates[`${key}/claimDetails`] = {
+                                        claimTime: new Date().toISOString(),
+                                        claimTransactionHash: claimTransactionHash,
+                                        claimMethod: 'wallet_claim',
+                                        claimAddress: walletAddress,
+                                        claimEvidence: reward.evidence ? {
+                                            originalTransaction: reward.evidence,
+                                            claimVerification: 'verified_by_snapshot'
+                                        } : null
+                                    };
+                                }
+                            });
+                            
+                            await rewardsRef.update(updates);
+                            console.log('✅ Updated rewards in Firebase backend');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to update Firebase rewards:', error);
+                }
+
+                // Also update localStorage as backup
                 if (window.backendManager) {
                     window.backendManager.setLocalStorageWithSync('mainCountdownRewards', mainCountdownRewards);
                 } else {
