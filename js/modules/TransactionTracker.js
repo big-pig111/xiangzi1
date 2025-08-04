@@ -154,7 +154,7 @@ class TransactionTracker {
             if (this.isTracking) {
                 await this.pollTransactions();
             }
-        }, 1000); // Poll every 1 second for real-time updates
+        }, 5000); // Poll every 5 seconds to avoid rate limiting
     }
 
     async pollTransactions() {
@@ -163,7 +163,7 @@ class TransactionTracker {
 
             const signatures = await this.connection.getSignaturesForAddress(
                 new window.solanaWeb3.PublicKey(this.tokenAddress),
-                { limit: 20 } // Increased limit for better coverage
+                { limit: 10 } // Reduced limit to avoid rate limiting
             );
 
             let newTransactionsFound = false;
@@ -823,7 +823,7 @@ class TransactionTracker {
             }
             
             // Method 2: Try to find from account keys (excluding LP)
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys) {
+            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys && Array.isArray(tx.transaction.message.accountKeys)) {
                 const accountKeys = tx.transaction.message.accountKeys;
                 for (const key of accountKeys) {
                     const address = key.toString();
@@ -835,7 +835,7 @@ class TransactionTracker {
             }
             
             // Method 3: Try to find from writable accounts
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.header) {
+            if (tx.transaction && tx.transaction.message && tx.transaction.message.header && tx.transaction.message.accountKeys) {
                 const header = tx.transaction.message.header;
                 const accountKeys = tx.transaction.message.accountKeys;
                 
@@ -868,7 +868,7 @@ class TransactionTracker {
             }
             
             // Method 5: Try to find from any account that's not the LP
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys) {
+            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys && Array.isArray(tx.transaction.message.accountKeys)) {
                 const accountKeys = tx.transaction.message.accountKeys;
                 for (const key of accountKeys) {
                     const address = key.toString();
@@ -935,7 +935,7 @@ class TransactionTracker {
             }
             
             // Method 2: Try to find from account keys (excluding LP)
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys) {
+            if (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys && Array.isArray(tx.transaction.message.accountKeys)) {
                 const accountKeys = tx.transaction.message.accountKeys;
                 for (const key of accountKeys) {
                     const address = key.toString();
@@ -947,7 +947,7 @@ class TransactionTracker {
             }
             
             // Method 3: Try to find from writable accounts
-            if (tx.transaction && tx.transaction.message && tx.transaction.message.header) {
+            if (tx.transaction && tx.transaction.message && tx.transaction.message.header && tx.transaction.message.accountKeys) {
                 const header = tx.transaction.message.header;
                 const accountKeys = tx.transaction.message.accountKeys;
                 
