@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Claim Rewards - MEME TO THE MOON</title>
+    <script src="js/modules/BackendManager.js"></script>
     <style>
         * {
             margin: 0;
@@ -723,6 +724,12 @@
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize BackendManager
+            if (!window.backendManager) {
+                window.backendManager = new BackendManager();
+                window.backendManager.init();
+            }
+            
             await checkWalletConnection();
             loadRewardData();
             updateDisplay();
@@ -1612,7 +1619,7 @@
                 updateDisplay();
                 updateExchangeButton(); // Update exchange button state
                 
-                // Sync points from backend to ensure accurate balance (贪吃蛇游戏积分)
+                // Sync points from backend to ensure accurate balance
                 try {
                     await syncPointsFromBackend();
                 } catch (error) {
