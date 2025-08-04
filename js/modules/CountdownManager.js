@@ -693,27 +693,9 @@ class MainCountdown {
         this.saveToBackend();
         this.updateDisplay();
         
-        // Restore countdown display
-        const countdownElement = document.getElementById('countdown');
-        if (countdownElement) {
-            countdownElement.innerHTML = `
-                <h2 class="countdown-title">Time Until Launch</h2>
-                <p class="countdown-subtitle">
-                    🌐 Global shared countdown - All players synchronized
-                    <span class="connection-indicator" id="syncStatus">🟢 Connected</span>
-                </p>
-                <div id="countdown" class="countdown-grid">
-                    <div class="countdown-block purple">
-                        <div id="minutes" class="countdown-number">05</div>
-                        <div class="countdown-label">MINUTES</div>
-                    </div>
-                    <div class="countdown-block green">
-                        <div id="seconds" class="countdown-number">00</div>
-                        <div class="countdown-label">SECONDS</div>
-                    </div>
-                </div>
-            `;
-        }
+       
+      
+        console.log('Countdown restarted - keeping existing interface style');
     }
 
     updateFromBackend(backendConfig) {
