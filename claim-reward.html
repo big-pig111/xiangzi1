@@ -795,7 +795,29 @@
             const userRewards = mainCountdownRewards.filter(r => r.winner === walletAddress);
             debugInfo += `👤 Your Rewards: ${userRewards.length}\n`;
             const unclaimedRewards = userRewards.filter(r => !r.claimed);
-            debugInfo += `🎁 Unclaimed: ${unclaimedRewards.length}\n`;
+            debugInfo += `🎁 Unclaimed: ${unclaimedRewards.length}\n\n`;
+            
+            // Add eligibility status
+            debugInfo += `🎯 ELIGIBILITY STATUS:\n`;
+            debugInfo += `mainCountdownEligible: ${mainCountdownEligible}\n`;
+            debugInfo += `mainCountdownEligibleCount: ${window.mainCountdownEligibleCount || 0}\n`;
+            debugInfo += `mainCountdownTotalPoints: ${window.mainCountdownTotalPoints || 0}\n`;
+            debugInfo += `mainCountdownClaimedPoints: ${window.mainCountdownClaimedPoints || 0}\n\n`;
+            
+            // Add BackendManager status
+            if (window.backendManager) {
+                const bmRewardAddress = window.backendManager.getMainCountdownRewardAddress();
+                debugInfo += `🔧 BACKEND MANAGER:\n`;
+                debugInfo += `Available: ✅\n`;
+                debugInfo += `Reward Address: ${bmRewardAddress ? 'Set' : 'Not set'}\n`;
+                if (bmRewardAddress) {
+                    debugInfo += `Address: ${bmRewardAddress.address}\n`;
+                    debugInfo += `Amount: ${bmRewardAddress.amount}\n`;
+                    debugInfo += `Is Set: ${bmRewardAddress.isSet}\n`;
+                }
+            } else {
+                debugInfo += `🔧 BACKEND MANAGER: ❌ Not available\n`;
+            }
             
             alert(debugInfo);
         }
@@ -865,7 +887,12 @@
 
         // Load reward data from backend and localStorage
         async function loadRewardData() {
-            if (!walletAddress) return;
+            if (!walletAddress) {
+                console.log('❌ No wallet address, skipping reward data load');
+                return;
+            }
+
+            console.log('🔄 Loading reward data for wallet:', walletAddress);
 
             let mainCountdownEligibleCount = 0;
             let mainCountdownTotalPoints = 0;
@@ -875,9 +902,18 @@
             try {
                 // First check if there's a configured reward address
                 const rewardAddressData = localStorage.getItem('mainCountdownRewardAddress');
+                console.log('📋 Reward address data:', rewardAddressData ? 'Found' : 'Not found');
+                
                 if (rewardAddressData) {
                     const rewardConfig = JSON.parse(rewardAddressData);
+                    console.log('🏆 Configured winner address:', rewardConfig.address);
+                    console.log('🔍 Wallet address:', walletAddress);
+                    console.log('🔍 Address match:', rewardConfig.address === walletAddress);
+                    console.log('✅ Is set:', rewardConfig.isSet);
+                    
                     if (rewardConfig.address === walletAddress && rewardConfig.isSet) {
+                        console.log('✅ Address matches and reward is set!');
+                        
                         // Check if reward already exists in localStorage
                         const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
                         const existingReward = mainCountdownRewards.find(reward => 
@@ -887,13 +923,17 @@
                         );
                         
                         if (existingReward) {
+                            console.log('📊 Found existing reward:', existingReward.claimed ? 'Claimed' : 'Unclaimed');
                             if (!existingReward.claimed) {
                                 mainCountdownEligibleCount++;
                                 mainCountdownTotalPoints += existingReward.amount || 100000;
+                                console.log('✅ Added existing unclaimed reward');
                             } else {
                                 mainCountdownClaimedPoints += existingReward.amount || 100000;
+                                console.log('📊 Added existing claimed reward');
                             }
                         } else {
+                            console.log('🆕 Creating new reward record...');
                             // Create the reward if it doesn't exist
                             const newReward = {
                                 id: `main_countdown_reward_${Date.now()}`,
@@ -934,22 +974,35 @@
                             mainCountdownTotalPoints += 100000;
                             console.log('✅ Created main countdown reward for configured address');
                         }
+                    } else {
+                        console.log('❌ Address does not match or reward not set');
+                        if (rewardConfig.address !== walletAddress) {
+                            console.log('❌ Address mismatch');
+                        }
+                        if (!rewardConfig.isSet) {
+                            console.log('❌ Reward not set');
+                        }
                     }
+                } else {
+                    console.log('❌ No reward address configuration found');
                 }
             } catch (error) {
-                console.error('Error checking admin configured reward:', error);
+                console.error('❌ Error checking admin configured reward:', error);
             }
 
             // Fallback to check existing rewards in localStorage
             if (mainCountdownEligibleCount === 0 && mainCountdownTotalPoints === 0) {
+                console.log('🔄 Checking fallback rewards...');
                 const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
                 mainCountdownRewards.forEach((reward, index) => {
                     if (reward.winner === walletAddress) {
                         if (!reward.claimed) {
                             mainCountdownEligibleCount++;
                             mainCountdownTotalPoints += reward.amount || 100000;
+                            console.log(`✅ Found fallback reward ${index + 1}: unclaimed`);
                         } else {
                             mainCountdownClaimedPoints += reward.amount || 100000;
+                            console.log(`📊 Found fallback reward ${index + 1}: claimed`);
                         }
                     }
                 });
