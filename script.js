@@ -229,33 +229,9 @@ class CountdownTimer {
         this.setDefaultCountdown();
         this.start();
         
-        // Restore countdown display
-        const countdownElement = document.getElementById('countdown');
-        if (countdownElement) {
-            countdownElement.innerHTML = `
-                <h2 class="countdown-title">
-                    Time Until Launch
-                </h2>
-                <p class="countdown-subtitle">
-                    🌐 Global shared countdown - All players synchronized
-                    <span class="connection-indicator" id="syncStatus">🟢 Connected</span>
-                </p>
-                
-                <div id="countdown" class="countdown-grid">
-                    <!-- Minutes -->
-                    <div class="countdown-block purple">
-                        <div id="minutes" class="countdown-number">05</div>
-                        <div class="countdown-label">MINUTES</div>
-                    </div>
-                    
-                    <!-- Seconds -->
-                    <div class="countdown-block green">
-                        <div id="seconds" class="countdown-number">00</div>
-                        <div class="countdown-label">SECONDS</div>
-                    </div>
-                </div>
-            `;
-        }
+        // 只更新倒计时数字，不改变界面结构
+        // 保持现有的倒计时界面样式不变
+        console.log('Countdown restarted - keeping existing interface style');
     }
 }
 
