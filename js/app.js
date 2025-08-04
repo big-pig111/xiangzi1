@@ -146,6 +146,9 @@ class MemeCoinApp {
         
         // Setup global copy functions
         this.setupCopyFunctions();
+        
+        // Setup button event listeners
+        this.setupButtonEventListeners();
     }
 
     start() {
@@ -258,6 +261,50 @@ class MemeCoinApp {
                 this.showCopyNotification('Failed to copy signature');
             });
         };
+    }
+
+    setupButtonEventListeners() {
+        // Whitepaper button
+        const whitepaperBtn = document.getElementById('whitepaperBtn');
+        if (whitepaperBtn) {
+            whitepaperBtn.addEventListener('click', () => {
+                console.log('📄 Opening whitepaper...');
+                if (this.modules.whitepaper) {
+                    this.modules.whitepaper.show();
+                } else {
+                    console.error('❌ WhitepaperModal not initialized');
+                    this.showErrorMessage('Whitepaper module not available');
+                }
+            });
+        }
+
+        // Claim reward button
+        const claimRewardBtn = document.getElementById('claimRewardBtn');
+        if (claimRewardBtn) {
+            claimRewardBtn.addEventListener('click', () => {
+                console.log('🎁 Opening claim reward modal...');
+                if (this.modules.claimReward) {
+                    this.modules.claimReward.show();
+                } else {
+                    console.error('❌ ClaimRewardModal not initialized');
+                    this.showErrorMessage('Claim reward module not available');
+                }
+            });
+        }
+
+        // Wallet connect button
+        const walletConnectBtn = document.getElementById('walletConnectBtn');
+        if (walletConnectBtn) {
+            walletConnectBtn.addEventListener('click', () => {
+                console.log('🔗 Opening wallet connection modal...');
+                if (this.modules.wallet) {
+                    this.modules.wallet.showConnectionModal();
+                } else {
+                    console.error('❌ WalletManager not initialized');
+                    this.showErrorMessage('Wallet module not available');
+                }
+            });
+        }
     }
     
     showCopyNotification(message) {
