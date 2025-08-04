@@ -549,7 +549,7 @@ class MainCountdown {
                 id: `main_countdown_reward_${Date.now()}`,
                 type: 'main-countdown',
                 round: this.getNextMainCountdownRewardRound(),
-                amount: 10000, // Default main countdown reward amount
+                amount: 1000, // 主倒计时奖励金额：1000积分
                 winner: winner,
                 transactionAmount: amount,
                 timestamp: Date.now(),
