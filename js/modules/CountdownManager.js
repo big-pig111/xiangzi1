@@ -336,6 +336,27 @@ class MainCountdown {
                 countdownEndTime: new Date(countdownEndTime).toISOString()
             });
             
+            // Check if this winner already has a recent reward (within last 5 minutes)
+            const existingRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+            const recentReward = existingRewards.find(reward => {
+                if (reward.winner === winner) {
+                    const rewardTime = new Date(reward.timestamp).getTime();
+                    const timeDiff = countdownEndTime - rewardTime;
+                    const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
+                    return timeDiff < fiveMinutes;
+                }
+                return false;
+            });
+            
+            if (recentReward) {
+                console.log('Winner already has a recent reward, skipping duplicate creation:', {
+                    winner: winner,
+                    existingRewardId: recentReward.id,
+                    timeSinceLastReward: (countdownEndTime - new Date(recentReward.timestamp).getTime()) / 1000 + ' seconds'
+                });
+                return;
+            }
+            
             // Create main countdown address snapshot for reward evidence
             this.createMainCountdownAddressSnapshot(winner, amount, lastBuyTransaction);
             
@@ -612,15 +633,8 @@ class MainCountdown {
     }
 
     showLaunchMessage() {
-        const countdownElement = document.getElementById('countdown');
-        if (countdownElement) {
-            countdownElement.innerHTML = `
-                <div class="launch-message">
-                    <h2>🚀 LAUNCHED! 🚀</h2>
-                    <p>TO THE MOON!!!</p>
-                </div>
-            `;
-        }
+        // 删除结束动画，直接重启倒计时
+        console.log('Main countdown ended - skipping launch animation');
     }
 
     restart() {
