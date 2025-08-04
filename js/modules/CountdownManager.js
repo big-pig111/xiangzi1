@@ -81,21 +81,50 @@ class MainCountdown {
     }
 
     init() {
+        console.log('🚀 Initializing MainCountdown - waiting for database sync...');
         this.loadFromBackend();
-        this.start();
+        
+        // Only start if we have database-synced countdown
+        const globalCountdown = localStorage.getItem('memeCoinCountdown');
+        if (globalCountdown) {
+            try {
+                const data = JSON.parse(globalCountdown);
+                const targetDate = new Date(data.targetDate);
+                const now = new Date();
+                
+                if (targetDate > now) {
+                    console.log('✅ Database countdown found, starting countdown...');
+                    this.start();
+                } else {
+                    console.log('⚠️ Database countdown expired, waiting for new sync...');
+                }
+            } catch (error) {
+                console.error('Failed to parse database countdown during init:', error);
+            }
+        } else {
+            console.log('⏳ No database countdown found during init, waiting for sync...');
+        }
     }
 
     loadFromBackend() {
         try {
-            // Prioritize loading from global countdown storage
+            console.log('Loading countdown from backend...');
+            
+            // Always prioritize loading from global countdown storage (database sync)
             const globalCountdown = localStorage.getItem('memeCoinCountdown');
             if (globalCountdown) {
                 const data = JSON.parse(globalCountdown);
                 const targetDate = new Date(data.targetDate);
                 const now = new Date();
                 
+                console.log('Global countdown data found:', {
+                    targetDate: targetDate.toISOString(),
+                    now: now.toISOString(),
+                    isExpired: targetDate <= now
+                });
+                
                 if (targetDate > now) {
-                    // Calculate remaining time
+                    // Calculate remaining time from database
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
@@ -103,21 +132,19 @@ class MainCountdown {
                     this.minutes = remainingMinutes;
                     this.seconds = remainingSeconds;
                     this.lastUpdate = data.lastUpdate;
-                    console.log('Loaded countdown from global storage:', this.minutes, this.seconds);
+                    console.log('✅ Loaded countdown from database sync:', this.minutes, this.seconds);
                     return;
+                } else {
+                    console.log('⚠️ Global countdown has expired, will wait for database update');
                 }
+            } else {
+                console.log('⚠️ No global countdown found, will wait for database update');
             }
             
-            // Fallback to backend configuration
-            const adminConfig = localStorage.getItem('memeCoinAdminConfig');
-            if (adminConfig) {
-                const config = JSON.parse(adminConfig);
-                if (config.countdown) {
-                    this.minutes = config.countdown.minutes || 5;
-                    this.seconds = 0;
-                    this.lastUpdate = config.countdown.lastUpdate;
-                }
-            }
+            // Don't fallback to admin config - wait for database sync
+            // This ensures we only use database-synced countdown
+            console.log('🔄 Waiting for database countdown sync...');
+            
         } catch (error) {
             console.error('Failed to load main countdown from backend:', error);
         }
@@ -199,7 +226,7 @@ class MainCountdown {
     }
 
     update() {
-        // First check if global countdown has updates
+        // Always check database-synced countdown first
         const globalCountdown = localStorage.getItem('memeCoinCountdown');
         if (globalCountdown) {
             try {
@@ -207,63 +234,52 @@ class MainCountdown {
                 const targetDate = new Date(data.targetDate);
                 const now = new Date();
                 
+                console.log('Database countdown check:', {
+                    targetDate: targetDate.toISOString(),
+                    now: now.toISOString(),
+                    isExpired: targetDate <= now
+                });
+                
                 if (targetDate > now) {
-                    // Calculate remaining time
+                    // Calculate remaining time from database
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
                     
-                    // If global countdown differs from current display, update display
+                    // If database countdown differs from current display, update display
                     if (remainingMinutes !== this.minutes || remainingSeconds !== this.seconds) {
                         this.minutes = remainingMinutes;
                         this.seconds = remainingSeconds;
                         this.updateDisplay();
-                        console.log('Countdown updated from global storage:', this.minutes, this.seconds);
+                        console.log('✅ Countdown updated from database sync:', this.minutes, this.seconds);
                         return; // Don't execute local countdown logic
                     }
                 } else {
-                    // Global countdown has ended - determine winner
-                    console.log('Global countdown ended - determining winner...');
+                    // Database countdown has ended - determine winner
+                    console.log('🎯 Database countdown ended - determining winner...');
                     this.determineMainCountdownWinner();
                     this.showLaunchMessage();
                     
-                    // Clear the global countdown to prevent repeated execution
+                    // Clear the database countdown to prevent repeated execution
                     localStorage.removeItem('memeCoinCountdown');
                     
-                    // Restart countdown after delay
+                    // Restart countdown after delay (will wait for database sync)
                     setTimeout(() => {
                         this.restart();
                     }, 3000);
                     return;
                 }
             } catch (error) {
-                console.error('Failed to parse global countdown:', error);
-            }
-        }
-        
-        // Local countdown logic
-        if (this.seconds === 0) {
-            if (this.minutes === 0) {
-                // Main countdown ended - determine winner and create reward
-                this.determineMainCountdownWinner();
-                this.showLaunchMessage();
-                setTimeout(() => {
-                    this.restart();
-                }, 3000);
-                return;
-            } else {
-                this.minutes--;
-                this.seconds = 59;
+                console.error('Failed to parse database countdown:', error);
             }
         } else {
-            this.seconds--;
+            // No database countdown available - wait for sync
+            console.log('⏳ No database countdown available, waiting for sync...');
+            return; // Don't execute local countdown logic
         }
-
-        this.updateDisplay();
-        // Only save to backend when there's no global countdown update
-        if (!globalCountdown) {
-            this.saveToBackend();
-        }
+        
+        // Don't execute local countdown logic - only use database-synced countdown
+        console.log('🔄 Waiting for database countdown sync...');
     }
 
     updateDisplay() {
@@ -676,32 +692,28 @@ class MainCountdown {
     }
 
     restart() {
-        // Get default time from backend configuration
-        try {
-            const adminConfig = localStorage.getItem('memeCoinAdminConfig');
-            if (adminConfig) {
-                const config = JSON.parse(adminConfig);
-                this.minutes = config.countdown?.minutes || 5;
-            } else {
-                this.minutes = 5;
-            }
-        } catch (error) {
-            this.minutes = 5;
-        }
+        console.log('🔄 Countdown restart requested - waiting for database sync...');
         
-        this.seconds = 0;
-        this.saveToBackend();
+        // Don't set default values - wait for database to provide new countdown
+        // This ensures we only use database-synced countdown values
+        
+        // Clear any existing countdown data to force database sync
+        localStorage.removeItem('memeCoinCountdown');
+        
+        // Wait for database to provide new countdown
+        console.log('⏳ Waiting for database to provide new countdown...');
+        
+        // Update display to show waiting state
         this.updateDisplay();
         
-       
-      
-        console.log('Countdown restarted - keeping existing interface style');
+        
+        console.log('Countdown restart - keeping existing interface style, waiting for database sync');
     }
 
     updateFromBackend(backendConfig) {
         console.log('MainCountdown updateFromBackend called with:', backendConfig);
         
-        // Prioritize reading from global countdown
+        // Always prioritize reading from global countdown (database sync)
         const globalCountdown = localStorage.getItem('memeCoinCountdown');
         if (globalCountdown) {
             try {
@@ -709,39 +721,46 @@ class MainCountdown {
                 const targetDate = new Date(data.targetDate);
                 const now = new Date();
                 
+                console.log('Checking global countdown for updates:', {
+                    targetDate: targetDate.toISOString(),
+                    now: now.toISOString(),
+                    isExpired: targetDate <= now
+                });
+                
                 if (targetDate > now) {
-                    // Calculate remaining time
+                    // Calculate remaining time from database
                     const remainingTime = targetDate - now;
                     const remainingMinutes = Math.floor(remainingTime / (1000 * 60));
                     const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
                     
-                    console.log('Updating from global countdown:', {
+                    console.log('Database countdown update:', {
                         targetDate,
                         now,
                         remainingMinutes,
-                        remainingSeconds
+                        remainingSeconds,
+                        currentMinutes: this.minutes,
+                        currentSeconds: this.seconds
                     });
                     
                     if (remainingMinutes !== this.minutes || remainingSeconds !== this.seconds) {
                         this.minutes = remainingMinutes;
                         this.seconds = remainingSeconds;
                         this.updateDisplay();
-                        console.log('Main countdown updated from global countdown');
+                        console.log('✅ Main countdown updated from database sync');
                     }
                     return; // Don't execute backend configuration update
+                } else {
+                    console.log('⚠️ Database countdown has expired, waiting for new sync');
                 }
             } catch (error) {
                 console.error('Failed to parse global countdown:', error);
             }
+        } else {
+            console.log('⚠️ No database countdown found, waiting for sync');
         }
         
-        // Only use backend configuration when there's no global countdown
-        if (backendConfig && (backendConfig.minutes !== this.minutes || backendConfig.seconds !== this.seconds)) {
-            this.minutes = backendConfig.minutes || 5;
-            this.seconds = backendConfig.seconds || 0;
-            this.updateDisplay();
-            console.log('Main countdown updated from backend config');
-        }
+        // Don't use backend configuration - only use database-synced countdown
+        console.log('🔄 Waiting for database countdown sync...');
     }
 
     destroy() {
