@@ -181,30 +181,8 @@ class CountdownTimer {
 
     // Show launch message
     showLaunchMessage() {
-        const countdownElement = document.getElementById('countdown');
-        if (countdownElement) {
-            // Get message from admin configuration
-            const adminConfig = localStorage.getItem('memeCoinAdminConfig');
-            let message = 'TO THE MOON!!! 🚀';
-            
-            if (adminConfig) {
-                try {
-                    const config = JSON.parse(adminConfig);
-                    if (config.countdown && config.countdown.message) {
-                        message = config.countdown.message;
-                    }
-                } catch (error) {
-                    console.error('Failed to get countdown message:', error);
-                }
-            }
-            
-            countdownElement.innerHTML = `
-                <div class="countdown-launched">
-                    <div class="launched-text">LAUNCHED!</div>
-                    <div class="launched-subtitle">${message}</div>
-                </div>
-            `;
-        }
+        // 删除结束动画，直接重启倒计时
+        console.log('Main countdown ended - skipping launch animation');
     }
 
     // Restart countdown to initial state (5 minutes)
