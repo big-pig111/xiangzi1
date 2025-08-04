@@ -1198,4 +1198,7 @@ class TransactionTracker {
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { TransactionTracker };
+} else {
+    // Browser environment - expose to global scope
+    window.TransactionTracker = TransactionTracker;
 } 
