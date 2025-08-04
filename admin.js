@@ -52,6 +52,9 @@ function bindEventListenersWithRetry() {
         { id: 'exportConfigBtn', event: 'click', handler: 'exportConfig' },
         { id: 'clearLogBtn', event: 'click', handler: 'clearLog' },
         { id: 'exportLogBtn', event: 'click', handler: 'exportLog' },
+        { id: 'validateRewardAddressBtn', event: 'click', handler: 'validateRewardAddress' },
+        { id: 'clearRewardBtn', event: 'click', handler: 'clearRewardAddress' },
+        { id: 'saveRewardAddressBtn', event: 'click', handler: 'saveRewardAddressConfig' },
         { id: 'modalClose', event: 'click', handler: 'closeModal' },
         { id: 'modalCancel', event: 'click', handler: 'closeModal' }
     ];
@@ -881,6 +884,190 @@ class ConfigManager {
         this.saveConfig();
     }
 
+    // Validate reward address
+    async validateRewardAddress() {
+        const address = document.getElementById('rewardAddress').value.trim();
+        
+        if (!address) {
+            this.showModal('Error', 'Please enter a reward address');
+            return;
+        }
+
+        // Basic Solana address validation (44 characters, base58)
+        const solanaAddressRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+        if (!solanaAddressRegex.test(address)) {
+            this.showModal('Error', 'Invalid Solana address format');
+            return;
+        }
+
+        this.showModal('Success', 'Address format is valid');
+        this.log(`Reward address validated: ${address}`, 'success');
+    }
+
+    // Clear reward address
+    async clearRewardAddress() {
+        this.showModal('Confirm Clear', 'Are you sure you want to clear the reward address? This will remove the current reward configuration.', async () => {
+            try {
+                // Clear from Firebase
+                if (window.backendManager && window.backendManager.firebaseEnabled) {
+                    const rewardRef = window.backendManager.firebaseRefs.mainCountdownRewards;
+                    if (rewardRef) {
+                        await rewardRef.remove();
+                        this.log('Reward address cleared from backend', 'warning');
+                    }
+                }
+
+                // Clear form fields
+                document.getElementById('rewardAddress').value = '';
+                document.getElementById('rewardAmount').value = '100000';
+                document.getElementById('rewardDescription').value = 'Main Countdown Winner Reward';
+
+                // Update status
+                this.updateRewardAddressStatus('Not Set', 'not-set');
+                this.updateRewardAddressDisplay();
+
+                this.showModal('Success', 'Reward address cleared successfully');
+                this.log('Reward address cleared', 'warning');
+            } catch (error) {
+                console.error('Error clearing reward address:', error);
+                this.showModal('Error', 'Failed to clear reward address: ' + error.message);
+            }
+        });
+    }
+
+    // Save reward address configuration
+    async saveRewardAddressConfig() {
+        const address = document.getElementById('rewardAddress').value.trim();
+        const amount = parseInt(document.getElementById('rewardAmount').value) || 100000;
+        const description = document.getElementById('rewardDescription').value.trim() || 'Main Countdown Winner Reward';
+
+        if (!address) {
+            this.showModal('Error', 'Please enter a reward address');
+            return;
+        }
+
+        // Basic Solana address validation
+        const solanaAddressRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+        if (!solanaAddressRegex.test(address)) {
+            this.showModal('Error', 'Invalid Solana address format');
+            return;
+        }
+
+        try {
+            // Create reward data
+            const rewardData = {
+                id: `admin_reward_${Date.now()}`,
+                type: 'main-countdown',
+                round: 1,
+                amount: amount,
+                winner: address,
+                transactionAmount: 0, // Admin set reward, no transaction
+                timestamp: Date.now(),
+                claimed: false,
+                createdAt: new Date().toISOString(),
+                snapshotId: `admin_snapshot_${Date.now()}`,
+                evidence: {
+                    address: address,
+                    transactionSignature: 'admin_set',
+                    transactionAmount: 0,
+                    transactionType: 'admin_reward'
+                },
+                rewardDetails: {
+                    rewardType: 'main_countdown_winner',
+                    eligibilityCriteria: 'admin_set_reward',
+                    winnerDeterminationTime: new Date().toISOString(),
+                    description: description
+                },
+                status: {
+                    created: true,
+                    claimed: false,
+                    claimedAt: null,
+                    claimTransactionHash: null,
+                    setBy: 'admin_panel'
+                }
+            };
+
+            // Save to Firebase backend
+            if (window.backendManager && window.backendManager.firebaseEnabled) {
+                const rewardRef = window.backendManager.firebaseRefs.mainCountdownRewards;
+                if (rewardRef) {
+                    await rewardRef.push(rewardData);
+                    this.log(`Reward address saved to backend: ${address}`, 'success');
+                }
+            }
+
+            // Update status
+            this.updateRewardAddressStatus('Set', 'success');
+            this.updateRewardAddressDisplay();
+
+            this.showModal('Success', `Reward address saved successfully. Address: ${address}, Amount: ${amount.toLocaleString()} points`);
+            this.log(`Reward address configured: ${address} (${amount.toLocaleString()} points)`, 'success');
+
+        } catch (error) {
+            console.error('Error saving reward address:', error);
+            this.showModal('Error', 'Failed to save reward address: ' + error.message);
+            this.log('Error saving reward address: ' + error.message, 'error');
+        }
+    }
+
+    // Update reward address status
+    updateRewardAddressStatus(status, type) {
+        const statusDot = document.getElementById('rewardAddressStatusDot');
+        const statusText = document.getElementById('rewardAddressStatusText');
+        
+        if (statusDot && statusText) {
+            statusDot.className = `status-dot ${type}`;
+            statusText.textContent = status;
+        }
+    }
+
+    // Update reward address display
+    updateRewardAddressDisplay() {
+        const address = document.getElementById('rewardAddress').value.trim();
+        const amount = parseInt(document.getElementById('rewardAmount').value) || 0;
+        
+        document.getElementById('currentRewardAddress').textContent = address || 'Not Set';
+        document.getElementById('currentRewardAmount').textContent = amount.toLocaleString();
+        
+        // Check if reward is claimed
+        this.checkRewardClaimStatus();
+    }
+
+    // Check reward claim status
+    async checkRewardClaimStatus() {
+        try {
+            const address = document.getElementById('rewardAddress').value.trim();
+            if (!address) {
+                document.getElementById('rewardClaimStatus').textContent = 'Not Set';
+                return;
+            }
+
+            if (window.backendManager && window.backendManager.firebaseEnabled) {
+                const rewardRef = window.backendManager.firebaseRefs.mainCountdownRewards;
+                if (rewardRef) {
+                    const snapshot = await rewardRef.orderByChild('winner').equalTo(address).once('value');
+                    const rewards = snapshot.val();
+                    
+                    if (rewards) {
+                        const rewardIds = Object.keys(rewards);
+                        const unclaimedRewards = rewardIds.filter(id => !rewards[id].claimed);
+                        
+                        if (unclaimedRewards.length > 0) {
+                            document.getElementById('rewardClaimStatus').textContent = 'Available to Claim';
+                        } else {
+                            document.getElementById('rewardClaimStatus').textContent = 'Already Claimed';
+                        }
+                    } else {
+                        document.getElementById('rewardClaimStatus').textContent = 'Not Available';
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error checking reward claim status:', error);
+            document.getElementById('rewardClaimStatus').textContent = 'Error';
+        }
+    }
+
     // Save all configurations
     async saveAllConfig() {
         try {
@@ -888,6 +1075,7 @@ class ConfigManager {
             this.saveTokenConfig();
             await this.saveCountdownConfig();
             this.saveRewardCountdownConfig();
+            await this.saveRewardAddressConfig();
             this.showModal('Success', 'All configurations saved');
         } catch (error) {
             console.error('Error occurred while saving configuration:', error);
@@ -1146,6 +1334,9 @@ class ConfigManager {
         this.updateLargeTransactionStats();
         this.updateSuccessAddressStats();
         this.updateRewardDataStats();
+        
+        // Update reward address status
+        this.updateRewardAddressDisplay();
     }
 
     // Update RPC status
@@ -2906,6 +3097,7 @@ class SystemMonitor {
         this.startHoldersSnapshotStatusUpdate();
         this.startMainCountdownSnapshotStatusUpdate();
         this.startRewardDataStatusUpdate();
+        this.startRewardAddressStatusUpdate();
     }
 
     // Start uptime counter
@@ -2995,6 +3187,15 @@ class SystemMonitor {
         setInterval(() => {
             if (window.adminApp && window.adminApp.configManager) {
                 window.adminApp.configManager.updateRewardDataStats();
+            }
+        }, 5000); // Update every 5 seconds
+    }
+
+    // Start reward address status update
+    startRewardAddressStatusUpdate() {
+        setInterval(() => {
+            if (window.adminApp && window.adminApp.configManager) {
+                window.adminApp.configManager.updateRewardAddressDisplay();
             }
         }, 5000); // Update every 5 seconds
     }
