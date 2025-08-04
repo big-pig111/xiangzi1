@@ -732,17 +732,24 @@
                 window.backendManager.init();
             }
             
-            await checkWalletConnection();
-            loadRewardData();
-            updateDisplay();
-            
-            // Sync points balance from backend when wallet is connected (优先使用贪吃蛇游戏积分)
-            if (walletConnected && walletAddress) {
-                await syncPointsFromBackend();
-            }
-            
             // Add debug button for testing
             addDebugButton();
+            
+            // Check wallet connection first
+            await checkWalletConnection();
+            
+            // Load reward data only if wallet is connected
+            if (walletConnected && walletAddress) {
+                console.log('✅ Wallet connected, loading reward data...');
+                await loadRewardData();
+                updateDisplay();
+                
+                // Sync points balance from backend when wallet is connected (优先使用贪吃蛇游戏积分)
+                await syncPointsFromBackend();
+            } else {
+                console.log('❌ No wallet connected, skipping reward data load');
+                updateDisplay(); // Still update display to show "Not Available"
+            }
         });
 
         // Add debug button for testing
@@ -874,8 +881,12 @@
                     await updateWalletDisplay();
                     
                     // Reload reward data after wallet connection
-                    loadRewardData();
+                    console.log('🔄 Reloading reward data after wallet connection...');
+                    await loadRewardData();
                     updateDisplay();
+                    
+                    // Sync points from backend
+                    await syncPointsFromBackend();
                 } else {
                     showNotification('Phantom wallet not found. Please install Phantom wallet extension.', 'error');
                 }
@@ -1040,10 +1051,21 @@
             window.holdingTotalPoints = holdingTotalPoints;
             window.mainCountdownClaimedPoints = mainCountdownClaimedPoints;
             window.holdingClaimedPoints = holdingClaimedPoints;
+            
+            console.log('🎯 Final eligibility status:');
+            console.log('  mainCountdownEligible:', mainCountdownEligible);
+            console.log('  mainCountdownEligibleCount:', mainCountdownEligibleCount);
+            console.log('  mainCountdownTotalPoints:', mainCountdownTotalPoints);
+            console.log('  totalPoints:', totalPoints);
         }
 
         // Update display
         function updateDisplay() {
+            console.log('🔄 Updating display...');
+            console.log('  mainCountdownEligible:', mainCountdownEligible);
+            console.log('  mainCountdownTotalPoints:', window.mainCountdownTotalPoints);
+            console.log('  totalPoints:', totalPoints);
+            
             // Update total points
             document.getElementById('totalPoints').textContent = totalPoints.toLocaleString();
 
@@ -1064,6 +1086,7 @@
                 claimMainBtn.disabled = false;
                 claimMainBtn.textContent = `🏆 Claim ${window.mainCountdownTotalPoints.toLocaleString()} Points`;
                 mainRewardDiv.className = 'reward-info available';
+                console.log('✅ Main countdown reward set to AVAILABLE');
             } else {
                 mainCountdownStatus.textContent = 'Not Available';
                 mainCountdownStatus.style.color = '#9CA3AF';
@@ -1072,6 +1095,7 @@
                 claimMainBtn.disabled = true;
                 claimMainBtn.textContent = '🏆 Claim Main Countdown Reward';
                 mainRewardDiv.className = 'reward-info';
+                console.log('❌ Main countdown reward set to NOT AVAILABLE');
             }
 
             // Update holding reward
