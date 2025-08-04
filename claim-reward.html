@@ -724,6 +724,8 @@
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🎁 Claim reward page initializing...');
+            
             // Initialize BackendManager
             if (!window.backendManager) {
                 window.backendManager = new BackendManager();
@@ -738,35 +740,126 @@
             if (walletConnected && walletAddress) {
                 await syncPointsFromBackend();
             }
+            
+            // Add debug button for testing
+            addDebugButton();
         });
+
+        // Add debug button for testing
+        function addDebugButton() {
+            const debugBtn = document.createElement('button');
+            debugBtn.textContent = '🔍 Debug Info';
+            debugBtn.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: linear-gradient(135deg, #FF9800, #F57C00);
+                color: white;
+                border: 3px solid #000;
+                border-radius: 12px;
+                padding: 12px 20px;
+                font-size: 1rem;
+                font-weight: bold;
+                cursor: pointer;
+                z-index: 99999;
+                font-family: 'Comic Sans MS', 'Comic Neue', cursive;
+            `;
+            debugBtn.onclick = showDebugInfo;
+            document.body.appendChild(debugBtn);
+        }
+
+        // Show debug information
+        function showDebugInfo() {
+            const rewardAddressData = localStorage.getItem('mainCountdownRewardAddress');
+            const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
+            
+            let debugInfo = `🔍 DEBUG INFO\n\n`;
+            debugInfo += `Wallet Connected: ${walletConnected}\n`;
+            debugInfo += `Wallet Address: ${walletAddress || 'Not connected'}\n\n`;
+            
+            if (rewardAddressData) {
+                const rewardConfig = JSON.parse(rewardAddressData);
+                debugInfo += `🏆 Winner Address: ${rewardConfig.address}\n`;
+                debugInfo += `💰 Reward Amount: ${rewardConfig.amount}\n`;
+                debugInfo += `✅ Is Set: ${rewardConfig.isSet}\n\n`;
+                
+                if (walletAddress) {
+                    const isMatch = rewardConfig.address === walletAddress;
+                    debugInfo += `🔍 Address Match: ${isMatch ? '✅ YES' : '❌ NO'}\n`;
+                }
+            } else {
+                debugInfo += `❌ No winner address configured\n\n`;
+            }
+            
+            debugInfo += `📊 Reward Records: ${mainCountdownRewards.length}\n`;
+            const userRewards = mainCountdownRewards.filter(r => r.winner === walletAddress);
+            debugInfo += `👤 Your Rewards: ${userRewards.length}\n`;
+            const unclaimedRewards = userRewards.filter(r => !r.claimed);
+            debugInfo += `🎁 Unclaimed: ${unclaimedRewards.length}\n`;
+            
+            alert(debugInfo);
+        }
 
         // Check wallet connection
         async function checkWalletConnection() {
-            // First check if there's a saved connection in this page
-            const savedConnection = localStorage.getItem('walletConnection');
-            if (savedConnection) {
-                const connection = JSON.parse(savedConnection);
-                walletConnected = true;
-                walletAddress = connection.address;
-                await updateWalletDisplay();
-                return;
-            }
+            try {
+                // Check if Phantom wallet is available and connected
+                if (typeof window.solana !== 'undefined' && window.solana.isPhantom) {
+                    const isConnected = window.solana.isConnected;
+                    if (isConnected) {
+                        walletConnected = true;
+                        walletAddress = window.solana.publicKey.toString();
+                        console.log('✅ Phantom wallet already connected:', walletAddress);
+                        await updateWalletDisplay();
+                        return;
+                    }
+                }
 
-            // If no saved connection, check if wallet is connected in main page
-            // This will be updated when the main page sends wallet connection info
-            console.log('No wallet connection found, waiting for main page connection...');
+                // Check if there's a saved connection in this page
+                const savedConnection = localStorage.getItem('walletConnection');
+                if (savedConnection) {
+                    const connection = JSON.parse(savedConnection);
+                    walletConnected = true;
+                    walletAddress = connection.address;
+                    console.log('✅ Using saved wallet connection:', walletAddress);
+                    await updateWalletDisplay();
+                    return;
+                }
+
+                console.log('No wallet connection found, waiting for connection...');
+            } catch (error) {
+                console.error('Error checking wallet connection:', error);
+            }
         }
 
 
 
         // Connect wallet
-        function connectWallet() {
-            if (!walletConnected) {
-                // Trigger wallet connection modal
-                window.parent.postMessage({
-                    type: 'openWalletModal',
-                    data: {}
-                }, '*');
+        async function connectWallet() {
+            try {
+                if (typeof window.solana !== 'undefined' && window.solana.isPhantom) {
+                    const response = await window.solana.connect();
+                    walletConnected = true;
+                    walletAddress = response.publicKey.toString();
+                    
+                    // Save connection to localStorage
+                    localStorage.setItem('walletConnection', JSON.stringify({
+                        address: walletAddress,
+                        connectedAt: new Date().toISOString()
+                    }));
+                    
+                    console.log('✅ Wallet connected successfully:', walletAddress);
+                    await updateWalletDisplay();
+                    
+                    // Reload reward data after wallet connection
+                    loadRewardData();
+                    updateDisplay();
+                } else {
+                    showNotification('Phantom wallet not found. Please install Phantom wallet extension.', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to connect wallet:', error);
+                showNotification('Failed to connect wallet: ' + error.message, 'error');
             }
         }
 
@@ -1619,7 +1712,7 @@
                 updateDisplay();
                 updateExchangeButton(); // Update exchange button state
                 
-                // Sync points from backend to ensure accurate balance
+                // Sync points from backend to ensure accurate balance (贪吃蛇游戏积分)
                 try {
                     await syncPointsFromBackend();
                 } catch (error) {
