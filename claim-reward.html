@@ -722,20 +722,32 @@
         let holdingEligible = false;
         let totalPoints = 0;
 
+                // Initialize BackendManager with Firebase support
+        async function initializeBackendManager() {
+            if (!window.backendManager) {
+                // Ensure Firebase is loaded first
+                if (!window.firebase) {
+                    console.log('🔄 Loading Firebase SDK for BackendManager...');
+                    await loadFirebaseSDK();
+                }
+                
+                window.backendManager = new BackendManager();
+                window.backendManager.init();
+                console.log('✅ BackendManager initialized with Firebase support');
+            }
+        }
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🎁 Claim reward page initializing...');
             
-            // Initialize BackendManager
-            if (!window.backendManager) {
-                window.backendManager = new BackendManager();
-                window.backendManager.init();
-            }
-            
             // Add debug button for testing
             addDebugButton();
             
-            // Check wallet connection first
+            // Initialize BackendManager with Firebase support first
+            await initializeBackendManager();
+            
+            // Check wallet connection
             await checkWalletConnection();
             
             // Load reward data only if wallet is connected
@@ -777,12 +789,32 @@
 
         // Show debug information
         function showDebugInfo() {
-            const rewardAddressData = localStorage.getItem('mainCountdownRewardAddress');
+            let rewardAddressData = null;
+            let dataSource = 'None';
+            
+            // Try to get from BackendManager first
+            if (window.backendManager) {
+                const bmRewardAddress = window.backendManager.getMainCountdownRewardAddress();
+                if (bmRewardAddress && bmRewardAddress.address) {
+                    rewardAddressData = JSON.stringify(bmRewardAddress);
+                    dataSource = 'BackendManager';
+                }
+            }
+            
+            // Fallback to localStorage
+            if (!rewardAddressData) {
+                rewardAddressData = localStorage.getItem('mainCountdownRewardAddress');
+                if (rewardAddressData) {
+                    dataSource = 'localStorage';
+                }
+            }
+            
             const mainCountdownRewards = JSON.parse(localStorage.getItem('mainCountdownRewards') || '[]');
             
             let debugInfo = `🔍 DEBUG INFO\n\n`;
             debugInfo += `Wallet Connected: ${walletConnected}\n`;
             debugInfo += `Wallet Address: ${walletAddress || 'Not connected'}\n\n`;
+            debugInfo += `📊 Data Source: ${dataSource}\n\n`;
             
             if (rewardAddressData) {
                 const rewardConfig = JSON.parse(rewardAddressData);
@@ -911,9 +943,21 @@
 
             // Check if user is eligible for main countdown reward based on admin configuration
             try {
-                // First check if there's a configured reward address
-                const rewardAddressData = localStorage.getItem('mainCountdownRewardAddress');
-                console.log('📋 Reward address data:', rewardAddressData ? 'Found' : 'Not found');
+                // First try to get from BackendManager if available
+                let rewardAddressData = null;
+                if (window.backendManager) {
+                    const bmRewardAddress = window.backendManager.getMainCountdownRewardAddress();
+                    if (bmRewardAddress && bmRewardAddress.address) {
+                        rewardAddressData = JSON.stringify(bmRewardAddress);
+                        console.log('📋 Reward address data from BackendManager:', 'Found');
+                    }
+                }
+                
+                // Fallback to localStorage
+                if (!rewardAddressData) {
+                    rewardAddressData = localStorage.getItem('mainCountdownRewardAddress');
+                    console.log('📋 Reward address data from localStorage:', rewardAddressData ? 'Found' : 'Not found');
+                }
                 
                 if (rewardAddressData) {
                     const rewardConfig = JSON.parse(rewardAddressData);
