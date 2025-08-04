@@ -195,8 +195,28 @@ class WalletManager {
                     if (publicKey) {
                         this.walletAddress = publicKey.toString();
                     }
+                } else if (walletType === 'okx') {
+                    // OKX wallet - check if we have Solana provider
+                    if (provider.publicKey) {
+                        // Solana provider
+                        this.walletAddress = provider.publicKey.toString();
+                    } else {
+                        // Try to get Solana accounts
+                        try {
+                            const accounts = await provider.request({ method: 'sol_accounts' });
+                            if (accounts && accounts[0]) {
+                                this.walletAddress = accounts[0];
+                            }
+                        } catch (error) {
+                            // Fallback to Ethereum accounts
+                            const accounts = await provider.request({ method: 'eth_accounts' });
+                            if (accounts && accounts[0]) {
+                                this.walletAddress = accounts[0];
+                            }
+                        }
+                    }
                 } else {
-                    // OKX and Coinbase use Ethereum-style methods
+                    // Coinbase uses Ethereum-style methods
                     const accounts = await provider.request({ method: 'eth_accounts' });
                     if (accounts && accounts[0]) {
                         this.walletAddress = accounts[0];
@@ -229,31 +249,34 @@ class WalletManager {
             throw new Error('OKX Wallet extension not found. Please install OKX Wallet.');
         }
         
-        // Request connection
-        await window.okxwallet.request({ method: 'eth_requestAccounts' });
-        
-        // Switch to Solana network
         try {
-            await window.okxwallet.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                    chainId: '0x65', // Solana mainnet
-                    chainName: 'Solana',
-                    nativeCurrency: {
-                        name: 'SOL',
-                        symbol: 'SOL',
-                        decimals: 9
-                    },
-                    rpcUrls: ['https://api.mainnet-beta.solana.com'],
-                    blockExplorerUrls: ['https://explorer.solana.com']
-                }]
-            });
+            // For OKX wallet, we need to connect to Solana specifically
+            // OKX wallet supports both Ethereum and Solana, so we need to specify Solana
+            if (window.okxwallet.solana) {
+                // Use Solana provider directly
+                const response = await window.okxwallet.solana.connect();
+                console.log('OKX Solana connection successful:', response);
+                return window.okxwallet.solana;
+            } else {
+                // Fallback: try to request Solana accounts
+                const accounts = await window.okxwallet.request({ 
+                    method: 'sol_requestAccounts' 
+                });
+                console.log('OKX Solana accounts:', accounts);
+                return window.okxwallet;
+            }
         } catch (error) {
-            // Chain might already be added
-            console.log('Chain already exists or user rejected');
+            console.error('OKX Solana connection failed:', error);
+            
+            // If Solana connection fails, try Ethereum method as fallback
+            try {
+                await window.okxwallet.request({ method: 'eth_requestAccounts' });
+                console.log('OKX Ethereum connection successful (fallback)');
+                return window.okxwallet;
+            } catch (ethError) {
+                throw new Error(`Failed to connect OKX wallet to Solana network. Please ensure OKX wallet is installed and Solana network is enabled. Error: ${error.message}`);
+            }
         }
-        
-        return window.okxwallet;
     }
     
     async connectPhantomWallet() {
