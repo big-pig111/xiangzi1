@@ -205,12 +205,33 @@ class TransactionTracker {
                 return;
             }
 
-            // Use blockTime for accurate transaction timing
-            const transactionTimestamp = blockTime ? new Date(blockTime * 1000).toISOString() : new Date().toISOString();
+            // Use real transaction time from blockTime for accurate timing
+            let transactionTimestamp;
+            let realTransactionTime;
+            
+            if (blockTime) {
+                // Convert blockTime (seconds since epoch) to milliseconds
+                realTransactionTime = new Date(blockTime * 1000);
+                transactionTimestamp = realTransactionTime.toISOString();
+                console.log('Using real transaction time:', {
+                    blockTime,
+                    realTransactionTime: realTransactionTime.toISOString(),
+                    localTime: realTransactionTime.toLocaleString()
+                });
+            } else {
+                // Fallback to current time if blockTime is not available
+                realTransactionTime = new Date();
+                transactionTimestamp = realTransactionTime.toISOString();
+                console.log('Using fallback time (no blockTime available):', {
+                    realTransactionTime: realTransactionTime.toISOString(),
+                    localTime: realTransactionTime.toLocaleString()
+                });
+            }
 
             const transactionData = {
                 signature: signature,
                 blockTime: blockTime,
+                realTransactionTime: realTransactionTime.toISOString(),
                 timestamp: transactionTimestamp,
                 type: this.determineTransactionType(tx),
                 amount: this.extractTokenAmount(tx),
@@ -254,12 +275,24 @@ class TransactionTracker {
     }
 
     addTransaction(transactionData) {
+        // Check for duplicates before adding
+        const isDuplicate = this.transactions.some(tx => tx.signature === transactionData.signature);
+        if (isDuplicate) {
+            console.log('Transaction already exists, skipping:', transactionData.signature);
+            return;
+        }
+        
+        // Add new transaction to the beginning
         this.transactions.unshift(transactionData);
         
-        // Keep only the latest transactions
+        // Keep only the latest 100 transactions (don't delete, just limit display)
         if (this.transactions.length > this.maxTransactions) {
+            // Keep the latest 100 transactions
             this.transactions = this.transactions.slice(0, this.maxTransactions);
+            console.log(`Transaction list limited to ${this.maxTransactions} records`);
         }
+        
+        console.log(`Transaction added. Total records: ${this.transactions.length}`);
     }
 
     uploadTransactionToBackend(transactionData) {
@@ -270,14 +303,17 @@ class TransactionTracker {
             // Check for duplicates
             const isDuplicate = data.transactions.some(tx => tx.signature === transactionData.signature);
             if (isDuplicate) {
+                console.log('Backend transaction already exists, skipping:', transactionData.signature);
                 return;
             }
 
+            // Add new transaction to the beginning
             data.transactions.unshift(transactionData);
             
-            // Keep only the latest 100 transactions
+            // Keep only the latest 100 transactions (don't delete, just limit)
             if (data.transactions.length > this.maxTransactions) {
                 data.transactions = data.transactions.slice(0, this.maxTransactions);
+                console.log(`Backend transaction list limited to ${this.maxTransactions} records`);
             }
 
             data.lastUpdate = new Date().toISOString();
@@ -288,6 +324,8 @@ class TransactionTracker {
             } else {
                 localStorage.setItem('memeCoinBackendTransactions', JSON.stringify(data));
             }
+            
+            console.log(`Backend transaction added. Total records: ${data.transactions.length}`);
             
         } catch (error) {
             console.error('Failed to upload transaction to backend:', error);
@@ -1080,14 +1118,21 @@ class TransactionTracker {
             if (this.transactions.length === 0) {
                 logElement.innerHTML = '<div class="log-placeholder">Waiting for detected transactions...</div>';
             } else {
-                const recentLogs = this.transactions.slice(0, 20).map(tx => `
-                    <div class="log-entry">
-                        <span class="log-time">${new Date(tx.timestamp).toLocaleTimeString()}</span>
-                        <span class="log-type ${tx.type.toLowerCase()}">${tx.type}</span>
-                        <span class="log-amount">${tx.amount}</span>
-                        <span class="log-trader">${tx.trader}</span>
-                    </div>
-                `).join('');
+                const recentLogs = this.transactions.slice(0, 20).map(tx => {
+                    // Use real transaction time if available
+                    const displayTime = tx.realTransactionTime ? 
+                        new Date(tx.realTransactionTime).toLocaleTimeString() : 
+                        new Date(tx.timestamp).toLocaleTimeString();
+                    
+                    return `
+                        <div class="log-entry">
+                            <span class="log-time">${displayTime}</span>
+                            <span class="log-type ${tx.type.toLowerCase()}">${tx.type}</span>
+                            <span class="log-amount">${tx.amount}</span>
+                            <span class="log-trader">${tx.trader}</span>
+                        </div>
+                    `;
+                }).join('');
                 logElement.innerHTML = recentLogs;
             }
         }
@@ -1102,29 +1147,37 @@ class TransactionTracker {
             if (this.transactions.length === 0) {
                 tableBody.innerHTML = '<tr><td colspan="5" class="no-records">No transaction records yet</td></tr>';
             } else {
-                const recentTransactions = this.transactions.slice(0, 50); // Show last 50 transactions
-                tableBody.innerHTML = recentTransactions.map((tx, index) => `
-                    <tr>
-                        <td>${new Date(tx.timestamp).toLocaleTimeString()}</td>
-                        <td><span class="tx-type ${tx.type.toLowerCase()}">${tx.type}</span></td>
-                        <td>${tx.amount}</td>
-                        <td>
-                            <span class="trader-address" title="Click to copy full address" onclick="copyAddress('${tx.fullTraderAddress || tx.trader}')">
-                                ${tx.trader}
-                            </span>
-                        </td>
-                        <td>
-                            <span class="tx-signature" title="Click to copy full signature" onclick="copySignature('${tx.signature}')">
-                                ${tx.signature.slice(0, 8)}...
-                            </span>
-                        </td>
-                    </tr>
-                `).join('');
+                // Show all transactions (up to 100)
+                const displayTransactions = this.transactions.slice(0, 100);
+                tableBody.innerHTML = displayTransactions.map((tx, index) => {
+                    // Use real transaction time if available, otherwise fallback to timestamp
+                    const displayTime = tx.realTransactionTime ? 
+                        new Date(tx.realTransactionTime).toLocaleTimeString() : 
+                        new Date(tx.timestamp).toLocaleTimeString();
+                    
+                    return `
+                        <tr>
+                            <td>${displayTime}</td>
+                            <td><span class="tx-type ${tx.type.toLowerCase()}">${tx.type}</span></td>
+                            <td>${tx.amount}</td>
+                            <td>
+                                <span class="trader-address" title="Click to copy full address" onclick="copyAddress('${tx.fullTraderAddress || tx.trader}')">
+                                    ${tx.trader}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="tx-signature" title="Click to copy full signature" onclick="copySignature('${tx.signature}')">
+                                    ${tx.signature.slice(0, 8)}...
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
             }
         }
         
         if (recordCount) {
-            recordCount.textContent = `${this.transactions.length} records`;
+            recordCount.textContent = `${this.transactions.length} records (max 100)`;
         }
         
         if (syncStatus) {
