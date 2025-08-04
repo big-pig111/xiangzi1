@@ -331,4 +331,7 @@ class UIEffects {
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { UIEffects };
+} else {
+    // Browser environment - expose to global scope
+    window.UIEffects = UIEffects;
 } 
