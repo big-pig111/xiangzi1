@@ -488,4 +488,7 @@ class TokenHoldersManager {
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { TokenHoldersManager };
+} else {
+    // Browser environment - expose to global scope
+    window.TokenHoldersManager = TokenHoldersManager;
 } 
