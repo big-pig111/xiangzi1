@@ -633,8 +633,46 @@ class MainCountdown {
     }
 
     showLaunchMessage() {
-        // 删除结束动画，直接重启倒计时
-        console.log('Main countdown ended - skipping launch animation');
+        // 显示奖励领取弹窗，不改变倒计时样式
+        this.showRewardClaimModal();
+        console.log('Main countdown ended - showing reward claim modal');
+    }
+
+    showRewardClaimModal() {
+        // 创建奖励领取弹窗
+        const modal = document.createElement('div');
+        modal.id = 'rewardClaimModal';
+        modal.className = 'reward-claim-modal';
+        modal.innerHTML = `
+            <div class="reward-claim-content">
+                <div class="reward-claim-header">
+                    <h2>🎉 Round Complete!</h2>
+                    <button class="reward-claim-close" onclick="this.closest('.reward-claim-modal').remove()">×</button>
+                </div>
+                <div class="reward-claim-body">
+                    <div class="reward-claim-icon">🏆</div>
+                    <h3>Congratulations!</h3>
+                    <p>This round has ended. Please check if you've won any rewards!</p>
+                    <div class="reward-claim-buttons">
+                        <button class="reward-claim-btn primary" onclick="this.closest('.reward-claim-modal').remove(); window.open('claim-reward.html', '_blank');">
+                            🎁 Claim Rewards
+                        </button>
+                        <button class="reward-claim-btn secondary" onclick="this.closest('.reward-claim-modal').remove();">
+                            Continue Watching
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // 自动关闭弹窗（10秒后）
+        setTimeout(() => {
+            if (modal.parentNode) {
+                modal.remove();
+            }
+        }, 10000);
     }
 
     restart() {
